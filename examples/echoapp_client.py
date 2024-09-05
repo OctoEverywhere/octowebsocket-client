@@ -2,7 +2,7 @@ import sys
 import time
 from threading import Thread
 
-import websocket
+import octowebsocket
 
 
 def on_message(ws, message):
@@ -34,12 +34,12 @@ def on_open(ws):
 
 
 if __name__ == "__main__":
-    websocket.enableTrace(True)
+    octowebsocket.enableTrace(True)
     if len(sys.argv) < 2:
         host = "ws://echo.websocket.events/"
     else:
         host = sys.argv[1]
-    ws = websocket.WebSocketApp(
+    ws = octowebsocket.WebSocketApp(
         host, on_message=on_message, on_error=on_error, on_close=on_close
     )
     ws.on_open = on_open

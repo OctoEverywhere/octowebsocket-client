@@ -6,9 +6,9 @@ import socket
 import ssl
 import unittest
 
-import websocket
-from websocket._exceptions import WebSocketProxyException, WebSocketException
-from websocket._http import (
+import octowebsocket
+from octowebsocket._exceptions import WebSocketProxyException, WebSocketException
+from octowebsocket._http import (
     _get_addrinfo_list,
     _start_proxied_socket,
     _tunnel,
@@ -40,7 +40,7 @@ limitations under the License.
 try:
     from python_socks._errors import ProxyConnectionError, ProxyError, ProxyTimeoutError
 except:
-    from websocket._http import ProxyConnectionError, ProxyError, ProxyTimeoutError
+    from octowebsocket._http import ProxyConnectionError, ProxyError, ProxyTimeoutError
 
 # Skip test to access the internet unless TEST_WITH_INTERNET == 1
 TEST_WITH_INTERNET = os.environ.get("TEST_WITH_INTERNET", "0") == "1"
@@ -305,12 +305,12 @@ class HttpTest(unittest.TestCase):
                         ECDHE-ECDSA-AES256-SHA:ECDHE-RSA-AES256-SHA",
             "ecdh_curve": "prime256v1",
         }
-        ws_ssl1 = websocket.WebSocket(sslopt=ssloptions)
+        ws_ssl1 = octowebsocket.WebSocket(sslopt=ssloptions)
         ws_ssl1.connect("wss://api.bitfinex.com/ws/2")
         ws_ssl1.send("Hello")
         ws_ssl1.close()
 
-        ws_ssl2 = websocket.WebSocket(sslopt={"check_hostname": True})
+        ws_ssl2 = octowebsocket.WebSocket(sslopt={"check_hostname": True})
         ws_ssl2.connect("wss://api.bitfinex.com/ws/2")
         ws_ssl2.close
 

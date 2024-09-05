@@ -6,12 +6,12 @@ import socket
 import unittest
 from base64 import decodebytes as base64decode
 
-import websocket as ws
-from websocket._exceptions import WebSocketBadStatusException, WebSocketAddressException
-from websocket._handshake import _create_sec_websocket_key
-from websocket._handshake import _validate as _validate_header
-from websocket._http import read_headers
-from websocket._utils import validate_utf8
+import octowebsocket as ws
+from octowebsocket._exceptions import WebSocketBadStatusException, WebSocketAddressException
+from octowebsocket._handshake import _create_sec_websocket_key
+from octowebsocket._handshake import _validate as _validate_header
+from octowebsocket._http import read_headers
+from octowebsocket._utils import validate_utf8
 
 """
 test_websocket.py

@@ -3,7 +3,7 @@
 import os
 import unittest
 
-from websocket._url import (
+from octowebsocket._url import (
     _is_address_in_network,
     _is_no_proxy_host,
     get_proxy_info,

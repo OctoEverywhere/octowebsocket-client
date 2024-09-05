@@ -25,19 +25,19 @@ install_requires = []
 tests_require = []
 
 setup(
-    name="websocket-client",
+    name="octowebsocket-client",
     version=VERSION,
-    description="WebSocket client for Python with low level API options",
+    description="WebSocket client for Python with low level API options for OctoEverywhere.com and Homeway.io",
     long_description=open("README.md").read(),
     long_description_content_type="text/markdown",
     author="liris",
     author_email="liris.pp@gmail.com",
-    maintainer="engn33r",
-    maintainer_email="websocket.client@proton.me",
+    maintainer="quinndamerell",
+    maintainer_email="support@octoeverywhere.com",
     license="Apache-2.0",
-    url="https://github.com/websocket-client/websocket-client.git",
-    download_url="https://github.com/websocket-client/websocket-client/releases",
-    python_requires=">=3.8",
+    url="https://github.com/OctoEverywhere/octowebsocket-client.git",
+    download_url="https://github.com/OctoEverywhere/octowebsocket-client/releases",
+    python_requires=">=3.7",
     extras_require={
         "test": ["websockets"],
         "optional": ["python-socks", "wsaccel"],
@@ -47,6 +47,7 @@ setup(
         "Development Status :: 4 - Beta",
         "License :: OSI Approved :: Apache Software License",
         "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
@@ -61,9 +62,9 @@ setup(
     ],
     project_urls={
         "Documentation": "https://websocket-client.readthedocs.io/",
-        "Source": "https://github.com/websocket-client/websocket-client/",
+        "Source": "https://github.com/OctoEverywhere/octowebsocket-client",
     },
-    keywords="websockets client",
+    keywords="octoeverywhere homeway",
     entry_points={
         "console_scripts": [
             "wsdump=websocket._wsdump:main",

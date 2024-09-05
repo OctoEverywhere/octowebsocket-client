@@ -6,6 +6,29 @@
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
+
+# Octo Websocket-Client
+
+This is a fork of `websocket-client` with a few very minor changes made for [OctoEverywhere.com](https://octoeverywhere.com) and [Homeway.io.](https://homeway.io)
+
+The goal is to keep the changes as small as possible, and to stay up to date as much as possible.
+
+Changes made:
+    - Added a flag on send to disable frame masking, which gives us a 30% CPU reduction on Pi4
+    - Kept support for PY 3.7, because we need it for the Sonic Pad
+    - We had to rename the root folder `octowebsocket` to avoid conflicts.
+
+To Update:
+    - Git pull to a release version commit
+    - Rebase our octo branch on top of it.
+    - Ensure the version number is updated to whatever we want.
+    - Run:
+        - `python -m build`
+        - `twine check dist/*`
+        - `twine upload dist/*`
+
+Source Repo: https://github.com/websocket-client/websocket-client
+
 # websocket-client
 
 websocket-client is a WebSocket client for Python. It provides access
