@@ -30,7 +30,8 @@ class SimpleCookieJar:
             simple_cookie = http.cookies.SimpleCookie(set_cookie)
 
             for v in simple_cookie.values():
-                if domain := v.get("domain"):
+                domain = v.get("domain")
+                if domain:
                     if not domain.startswith("."):
                         domain = f".{domain}"
                     cookie = (
@@ -46,7 +47,8 @@ class SimpleCookieJar:
             simple_cookie = http.cookies.SimpleCookie(set_cookie)
 
             for v in simple_cookie.values():
-                if domain := v.get("domain"):
+                domain = v.get("domain")
+                if domain:
                     if not domain.startswith("."):
                         domain = f".{domain}"
                     self.jar[domain.lower()] = simple_cookie

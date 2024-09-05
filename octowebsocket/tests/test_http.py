@@ -244,7 +244,7 @@ class HttpTest(unittest.TestCase):
         TEST_WITH_LOCAL_SERVER, "Tests using local websocket server are disabled"
     )
     def test_proxy_connect(self):
-        ws = websocket.WebSocket()
+        ws = octowebsocket.WebSocket()
         ws.connect(
             f"ws://127.0.0.1:{LOCAL_WS_SERVER_PORT}",
             http_proxy_host="127.0.0.1",

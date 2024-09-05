@@ -119,10 +119,12 @@ def _get_handshake_headers(
     else:
         headers.append(options["connection"])
 
-    if subprotocols := options.get("subprotocols"):
+    subprotocols = options.get("subprotocols")
+    if subprotocols:
         headers.append(f'Sec-WebSocket-Protocol: {",".join(subprotocols)}')
 
-    if header := options.get("header"):
+    header = options.get("header")
+    if header:
         if isinstance(header, dict):
             header = [": ".join([k, v]) for k, v in header.items() if v is not None]
         headers.extend(header)
@@ -130,7 +132,8 @@ def _get_handshake_headers(
     server_cookie = CookieJar.get(host)
     client_cookie = options.get("cookie", None)
 
-    if cookie := "; ".join(filter(None, [server_cookie, client_cookie])):
+    cookie = "; ".join(filter(None, [server_cookie, client_cookie]))
+    if cookie:
         headers.append(f"Cookie: {cookie}")
 
     headers.extend(("", ""))

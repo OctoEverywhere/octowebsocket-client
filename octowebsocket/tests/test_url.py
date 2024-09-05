@@ -9,7 +9,7 @@ from octowebsocket._url import (
     get_proxy_info,
     parse_url,
 )
-from websocket._exceptions import WebSocketProxyException
+from octowebsocket._exceptions import WebSocketProxyException
 
 """
 test_url.py
