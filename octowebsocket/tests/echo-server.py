@@ -5,7 +5,7 @@
 import asyncio
 import os
 
-import websockets
+import octowebsocket
 
 LOCAL_WS_SERVER_PORT = int(os.environ.get("LOCAL_WS_SERVER_PORT", "8765"))
 
@@ -16,7 +16,7 @@ async def echo(websocket):
 
 
 async def main():
-    async with websockets.serve(echo, "localhost", LOCAL_WS_SERVER_PORT):
+    async with octowebsocket.serve(echo, "localhost", LOCAL_WS_SERVER_PORT):
         await asyncio.Future()  # run forever
 
 

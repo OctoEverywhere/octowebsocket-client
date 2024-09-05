@@ -2,8 +2,8 @@
 #
 import unittest
 
-from websocket._abnf import ABNF, frame_buffer
-from websocket._exceptions import WebSocketProtocolException
+from octowebsocket._abnf import ABNF, frame_buffer
+from octowebsocket._exceptions import WebSocketProtocolException
 
 """
 test_abnf.py

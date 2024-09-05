@@ -25,7 +25,7 @@ limitations under the License.
 class UtilsTest(unittest.TestCase):
     def test_nolock(self):
         """Test NoLock context manager"""
-        from websocket._utils import NoLock
+        from octowebsocket._utils import NoLock
 
         lock = NoLock()
 
@@ -40,7 +40,7 @@ class UtilsTest(unittest.TestCase):
     def test_utf8_validation_with_wsaccel(self):
         """Test UTF-8 validation when wsaccel is available"""
         # Import normally (wsaccel should be available in test environment)
-        from websocket._utils import validate_utf8
+        from octowebsocket._utils import validate_utf8
 
         # Test valid UTF-8 strings (convert to bytes for wsaccel)
         self.assertTrue(validate_utf8("Hello, World!".encode("utf-8")))
@@ -69,7 +69,7 @@ class UtilsTest(unittest.TestCase):
             return original_import(name, *args, **kwargs)
 
         with patch("builtins.__import__", side_effect=mock_import):
-            import websocket._utils as utils
+            import octowebsocket._utils as utils
 
             # Test valid UTF-8 strings with fallback implementation (convert strings to bytes)
             self.assertTrue(utils.validate_utf8("Hello, World!".encode("utf-8")))
@@ -93,7 +93,7 @@ class UtilsTest(unittest.TestCase):
 
     def test_extract_err_message(self):
         """Test extract_err_message function"""
-        from websocket._utils import extract_err_message
+        from octowebsocket._utils import extract_err_message
 
         # Test with exception that has args
         exc_with_args = Exception("Test error message")
@@ -109,7 +109,7 @@ class UtilsTest(unittest.TestCase):
 
     def test_extract_error_code(self):
         """Test extract_error_code function"""
-        from websocket._utils import extract_error_code
+        from octowebsocket._utils import extract_error_code
 
         # Test with exception that has integer as first arg
         exc_with_code = Exception(404, "Not found")

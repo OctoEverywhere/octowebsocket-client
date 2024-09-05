@@ -25,7 +25,7 @@ limitations under the License.
 class SSLCompatTest(unittest.TestCase):
     def test_ssl_available(self):
         """Test that SSL is available in normal conditions"""
-        import websocket._ssl_compat as ssl_compat
+        import octowebsocket._ssl_compat as ssl_compat
 
         # In normal conditions, SSL should be available
         self.assertTrue(ssl_compat.HAVE_SSL)
@@ -54,7 +54,7 @@ class SSLCompatTest(unittest.TestCase):
             return original_import(name, *args, **kwargs)
 
         with patch("builtins.__import__", side_effect=mock_import):
-            import websocket._ssl_compat as ssl_compat
+            import octowebsocket._ssl_compat as ssl_compat
 
             # SSL should not be available
             self.assertFalse(ssl_compat.HAVE_SSL)

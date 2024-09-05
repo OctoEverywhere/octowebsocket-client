@@ -2,13 +2,13 @@
 import unittest
 from unittest.mock import Mock, patch
 
-from websocket._handshake import _get_resp_headers
-from websocket._exceptions import WebSocketBadStatusException
-from websocket._ssl_compat import SSLError
+from octowebsocket._handshake import _get_resp_headers
+from octowebsocket._exceptions import WebSocketBadStatusException
+from octowebsocket._ssl_compat import SSLError
 
 """
 test_handshake_large_response.py
-websocket - WebSocket client library for Python
+octowebsocket - WebSocket client library for Python
 
 Copyright 2025 engn33r
 

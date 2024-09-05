@@ -3,10 +3,10 @@ import unittest
 import struct
 from unittest.mock import Mock, patch, MagicMock
 
-from websocket._abnf import ABNF
-from websocket._core import WebSocket
-from websocket._exceptions import WebSocketProtocolException, WebSocketPayloadException
-from websocket._ssl_compat import SSLError
+from octowebsocket._abnf import ABNF
+from octowebsocket._core import WebSocket
+from octowebsocket._exceptions import WebSocketProtocolException, WebSocketPayloadException
+from octowebsocket._ssl_compat import SSLError
 
 """
 test_large_payloads.py
@@ -85,7 +85,7 @@ class LargePayloadTest(unittest.TestCase):
             return result
 
         # Test the frame buffer's recv_strict method
-        from websocket._abnf import frame_buffer
+        from octowebsocket._abnf import frame_buffer
 
         fb = frame_buffer(mock_recv, skip_utf8_validation=True)
 
@@ -111,7 +111,7 @@ class LargePayloadTest(unittest.TestCase):
                 raise SSLError("[SSL: BAD_LENGTH] unknown error")
             return b"C" * min(bufsize, 16384)
 
-        from websocket._abnf import frame_buffer
+        from octowebsocket._abnf import frame_buffer
 
         fb = frame_buffer(mock_recv_with_ssl_limit, skip_utf8_validation=True)
 
@@ -239,7 +239,7 @@ class LargePayloadTest(unittest.TestCase):
             call_count += 1
             return result
 
-        from websocket._abnf import frame_buffer
+        from octowebsocket._abnf import frame_buffer
 
         fb = frame_buffer(mock_recv, skip_utf8_validation=True)
         result = fb.recv_strict(16384)

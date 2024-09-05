@@ -1,8 +1,8 @@
-import websocket
+import octowebsocket
 
 if __name__ == "__main__":
-    websocket.enableTrace(True)
-    ws = websocket.create_connection("ws://echo.websocket.events/")
+    octowebsocket.enableTrace(True)
+    ws = octowebsocket.create_connection("ws://echo.websocket.events/")
     ws.recv()
     print("Sending 'Hello, World'...")
     ws.send("Hello, World")

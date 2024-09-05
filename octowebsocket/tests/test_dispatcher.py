@@ -5,8 +5,8 @@ from unittest.mock import Mock, patch, MagicMock
 import threading
 import time
 
-import websocket
-from websocket._dispatcher import (
+import octowebsocket
+from octowebsocket._dispatcher import (
     Dispatcher,
     DispatcherBase,
     SSLDispatcher,

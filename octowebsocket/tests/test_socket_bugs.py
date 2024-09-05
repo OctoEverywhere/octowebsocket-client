@@ -4,9 +4,9 @@ import socket
 import unittest
 from unittest.mock import Mock, patch
 
-from websocket._socket import recv
-from websocket._ssl_compat import SSLWantReadError
-from websocket._exceptions import (
+from octowebsocket._socket import recv
+from octowebsocket._ssl_compat import SSLWantReadError
+from octowebsocket._exceptions import (
     WebSocketTimeoutException,
     WebSocketConnectionClosedException,
 )

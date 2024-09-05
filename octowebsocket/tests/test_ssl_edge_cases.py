@@ -4,16 +4,16 @@ import socket
 import ssl
 from unittest.mock import Mock, patch, MagicMock
 
-from websocket._ssl_compat import (
+from octowebsocket._ssl_compat import (
     SSLError,
     SSLEOFError,
     SSLWantReadError,
     SSLWantWriteError,
     HAVE_SSL,
 )
-from websocket._http import _ssl_socket, _wrap_sni_socket
-from websocket._exceptions import WebSocketException
-from websocket._socket import recv, send
+from octowebsocket._http import _ssl_socket, _wrap_sni_socket
+from octowebsocket._exceptions import WebSocketException
+from octowebsocket._socket import recv, send
 
 """
 test_ssl_edge_cases.py
@@ -249,15 +249,15 @@ class SSLEdgeCasesTest(unittest.TestCase):
         mock_sock.send.side_effect = SSLEOFError("SSL connection has been closed")
         mock_sock.gettimeout.return_value = 30.0
 
-        from websocket._exceptions import WebSocketConnectionClosedException
+        from octowebsocket._exceptions import WebSocketConnectionClosedException
 
         with self.assertRaises(WebSocketConnectionClosedException):
             send(mock_sock, b"test data")
 
     def test_ssl_pending_data_edge_cases(self):
         """Test SSL pending data scenarios"""
-        from websocket._dispatcher import SSLDispatcher
-        from websocket._app import WebSocketApp
+        from octowebsocket._dispatcher import SSLDispatcher
+        from octowebsocket._app import WebSocketApp
 
         # Mock SSL socket with pending data
         mock_ssl_sock = Mock()
@@ -385,7 +385,7 @@ class SSLEdgeCasesTest(unittest.TestCase):
 
     def test_ssl_socket_shutdown_edge_cases(self):
         """Test SSL socket shutdown edge cases"""
-        from websocket._core import WebSocket
+        from octowebsocket._core import WebSocket
 
         mock_ssl_sock = Mock()
         mock_ssl_sock.shutdown.side_effect = SSLError("SSL shutdown failed")
@@ -410,7 +410,7 @@ class SSLEdgeCasesTest(unittest.TestCase):
         )
         mock_sock.gettimeout.return_value = 30.0
 
-        from websocket._exceptions import WebSocketConnectionClosedException
+        from octowebsocket._exceptions import WebSocketConnectionClosedException
 
         # Should handle unexpected SSL closure
         with self.assertRaises((SSLError, WebSocketConnectionClosedException)):
@@ -507,7 +507,7 @@ class SSLEdgeCasesTest(unittest.TestCase):
         mock_sock.recv.side_effect = mock_recv
         mock_sock.gettimeout.return_value = 30.0
 
-        from websocket._abnf import frame_buffer
+        from octowebsocket._abnf import frame_buffer
 
         # Frame buffer should handle large requests by chunking
         fb = frame_buffer(lambda size: recv(mock_sock, size), skip_utf8_validation=True)

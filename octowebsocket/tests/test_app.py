@@ -6,7 +6,7 @@ import ssl
 import threading
 import unittest
 
-import websocket as ws
+import octowebsocket as ws
 
 """
 test_app.py

@@ -1,6 +1,6 @@
 import unittest
 
-from websocket._cookiejar import SimpleCookieJar
+from octowebsocket._cookiejar import SimpleCookieJar
 
 """
 test_cookiejar.py

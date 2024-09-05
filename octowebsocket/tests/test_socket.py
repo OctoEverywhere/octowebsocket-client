@@ -5,14 +5,14 @@ import unittest
 from unittest.mock import Mock, patch, MagicMock
 import time
 
-from websocket._socket import recv, recv_line, send, DEFAULT_SOCKET_OPTION
-from websocket._ssl_compat import (
+from octowebsocket._socket import recv, recv_line, send, DEFAULT_SOCKET_OPTION
+from octowebsocket._ssl_compat import (
     SSLError,
     SSLEOFError,
     SSLWantWriteError,
     SSLWantReadError,
 )
-from websocket._exceptions import (
+from octowebsocket._exceptions import (
     WebSocketTimeoutException,
     WebSocketConnectionClosedException,
 )
