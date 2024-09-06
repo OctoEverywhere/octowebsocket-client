@@ -7,7 +7,7 @@
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
 
-# Octo Websocket-Client
+# OctoWebsocket-Client
 
 This is a fork of `websocket-client` with a few very minor changes made for [OctoEverywhere.com](https://octoeverywhere.com) and [Homeway.io.](https://homeway.io)
 
@@ -16,12 +16,16 @@ The goal is to keep the changes as small as possible, and to stay up to date as 
 Changes made:
     - Added a flag on send to disable frame masking, which gives us a 30% CPU reduction on Pi4
     - Kept support for PY 3.7, because we need it for the Sonic Pad
+    - Make a small change in send_frame to avoid a slice that's not needed.
+    - Enabled PYlint and disabled a few warnings that aren't important to fix
     - We had to rename the root folder `octowebsocket` to avoid conflicts.
+
 
 To Update:
     - Git pull to a release version commit
     - Rebase our octo branch on top of it.
-    - Ensure the version number is updated to whatever we want.
+    - Search for the current version string and update all instances.
+    - Commit the changes, allow the GitHub Actions to run and turn green.
     - Run:
         - `python -m build`
         - `twine check dist/*`

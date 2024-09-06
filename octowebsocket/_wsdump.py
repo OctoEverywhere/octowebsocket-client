@@ -42,7 +42,8 @@ def get_encoding() -> str:
     if not encoding:
         return "utf-8"
     else:
-        return encoding.lower()
+        # pylint: disable=no-member
+        return "utf-8"
 
 
 OPCODE_DATA = (octowebsocket.ABNF.OPCODE_TEXT, octowebsocket.ABNF.OPCODE_BINARY)

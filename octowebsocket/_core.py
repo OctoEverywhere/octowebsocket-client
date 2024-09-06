@@ -296,7 +296,7 @@ class WebSocket:
             Whether to mask the data in the websocket frame sent. Default is True.
         """
 
-        frame = ABNF.create_frame(payload, opcode, use_frame_mask)
+        frame = ABNF.create_frame(payload, opcode, use_frame_mask=use_frame_mask)
         return self.send_frame(frame)
 
     def send_text(self, text_data: str) -> int:
@@ -338,6 +338,9 @@ class WebSocket:
         with self.lock:
             while data:
                 l = self._send(data)
+                # OctoChange : Small optimization to avoid slicing data if all was consumed
+                if l == length:
+                    break
                 data = data[l:]
 
         return length
