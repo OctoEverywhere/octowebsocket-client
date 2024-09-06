@@ -30,8 +30,9 @@ def setup(app):
 
 # -- Project information -----------------------------------------------------
 project = "websocket-client"
+# pylint: disable=redefined-builtin
 copyright = "2025"
-author = "liris"
+author = "quinndamerell"
 
 # The full version, including alpha/beta/rc tags
 release = "1.9.0"
