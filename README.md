@@ -20,6 +20,7 @@ Changes made: (in commit order)
     - We had to remove some syntax not supported in 3.7.
     - Make a small change in send_frame to avoid a slice that's not needed.
     - Enabled PYlint and disabled a few warnings that aren't important to fix
+    - Added buffer optimizations to allow for passing buffer fragments to be sent and preventing buffer copies.
 
 
 To Update:
