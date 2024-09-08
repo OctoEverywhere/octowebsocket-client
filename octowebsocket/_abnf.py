@@ -152,6 +152,8 @@ class ABNF:
         opcode: int = OPCODE_TEXT,
         mask_value: int = 1,
         data: Union[str, bytes, None] = "",
+        data_start_offset_bytes: Union[int, None] = None,
+        data_msg_length_bytes: Union[int, None] = None
     ) -> None:
         """
         Constructor for ABNF. Please check RFC for arguments.
@@ -165,6 +167,7 @@ class ABNF:
         if data is None:
             data = ""
         self.data = data
+        self.data_start_offset_bytes = 0 if data_start_offset_bytes is None else data_start_offset_bytes
         self.get_mask_key = os.urandom
 
     def validate(self, skip_utf8_validation: bool = False) -> None:
@@ -205,7 +208,7 @@ class ABNF:
         return f"fin={self.fin} opcode={self.opcode} data={self.data}"
 
     @staticmethod
-    def create_frame(data: Union[bytes, str], opcode: int, fin: int = 1, use_frame_mask: bool = True) -> "ABNF":
+    def create_frame(data: Union[bytes, str], opcode: int, fin: int = 1, use_frame_mask: bool = True, data_start_offset_bytes: Union[int, None] = None, data_msg_length_bytes: Union[int, None] = None) -> "ABNF":
         """
         Create frame to send text, binary and other data.
 
@@ -229,9 +232,9 @@ class ABNF:
         # However, computing the mask adds a measurable amount of overhead and is unnecessary if SSL is being used to secure the connection.
         # Most modern web servers will accept unmasked data when sent over SSL, thus making this optional can help performance.
         mask_value = 1 if use_frame_mask else 0
-        return ABNF(fin, 0, 0, 0, opcode, mask_value, data)
+        return ABNF(fin, 0, 0, 0, opcode, mask_value, data, data_start_offset_bytes, data_msg_length_bytes)
 
-    def format(self) -> bytes:
+    def format(self) -> memoryview:
         """
         Format this object to string(byte array) to send data to server.
         """
@@ -239,7 +242,8 @@ class ABNF:
             raise ValueError("not 0 or 1")
         if self.opcode not in ABNF.OPCODES:
             raise ValueError("Invalid OPCODE")
-        length = len(self.data)
+
+        length = len(self.data) - self.data_start_offset_bytes
         if length >= ABNF.LENGTH_63:
             raise ValueError("data is too long")
 
@@ -259,12 +263,31 @@ class ABNF:
             frame_header += chr(self.mask_value << 7 | 0x7F).encode("latin-1")
             frame_header += struct.pack("!Q", length)
 
-        if not self.mask_value:
-            if isinstance(self.data, str):
-                self.data = self.data.encode("utf-8")
-            return frame_header + self.data
-        mask_key = self.get_mask_key(4)
-        return frame_header + self._get_masked(mask_key)
+        # If the data needs to be masked, mask it. There's no way to avoid copying the data here.
+        if self.mask_value:
+            mask_key = self.get_mask_key(4)
+            self.data = self._get_masked(mask_key)
+            self.data_start_offset_bytes = 0
+            length = len(self.data)
+
+        if isinstance(self.data, str):
+            self.data = self.data.encode("utf-8")
+
+        # If there'e enough space in the data buffer, write the frame header there without copying.
+        frame_header_len = len(frame_header)
+        if frame_header_len < self.data_start_offset_bytes:
+            self.data[self.data_start_offset_bytes-frame_header_len:self.data_start_offset_bytes] = frame_header
+            self.data_start_offset_bytes -= frame_header_len
+            length += frame_header_len
+        else:
+            # Otherwise, copy the data to a new buffer.
+            self.data = frame_header + self.data
+            self.data_start_offset_bytes = 0
+            length = len(self.data)
+
+        # Return a memoryview of the data buffer that contains the frame.
+        return memoryview(self.data)[self.data_start_offset_bytes:self.data_msg_length_bytes]
+
 
     def _get_masked(self, mask_key: Union[str, bytes]) -> bytes:
         s = ABNF.mask(mask_key, self.data)
