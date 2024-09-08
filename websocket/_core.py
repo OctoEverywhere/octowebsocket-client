@@ -279,7 +279,7 @@ class WebSocket:
                 self.sock = None
             raise
 
-    def send(self, payload: Union[bytes, str], opcode: int = ABNF.OPCODE_TEXT, use_frame_mask: bool = True) -> int:
+    def send(self, payload: Union[bytes, str], opcode: int = ABNF.OPCODE_TEXT, use_frame_mask: bool = True, data_start_offset_bytes: Union[int, None] = None, data_msg_length_bytes: Union[int, None] = None) -> int:
         """
         Send the data as string.
 
@@ -293,9 +293,15 @@ class WebSocket:
             Operation code (opcode) to send.
         use_frame_mask: bool
             Whether to mask the data in the websocket frame sent. Default is True.
+        data_start_offset_bytes: int
+            Optional - The start offset into the buffer of data to send.
+            If there's enough room at the front of the buffer to append the websocket frame header this will avoid a buffer copy.
+        data_msg_length_bytes: int
+            Optional - The size of the data in the buffer send.
+            If not specified, the full buffer length is assumed to be the message size.
         """
 
-        frame = ABNF.create_frame(payload, opcode, use_frame_mask=use_frame_mask)
+        frame = ABNF.create_frame(payload, opcode, use_frame_mask=use_frame_mask, data_start_offset_bytes=data_start_offset_bytes, data_msg_length_bytes=data_msg_length_bytes)
         return self.send_frame(frame)
 
     def send_text(self, text_data: str) -> int:
@@ -310,7 +316,7 @@ class WebSocket:
         """
         return self.send(data, ABNF.OPCODE_BINARY)
 
-    def send_frame(self, frame) -> int:
+    def send_frame(self, frame: ABNF) -> int:
         """
         Send the data frame.
 
@@ -333,10 +339,13 @@ class WebSocket:
         length = len(data)
         if isEnabledForTrace():
             trace(f"++Sent raw: {repr(data)}")
-            trace(f"++Sent decoded: {frame.__str__()}")
+            trace(f"++Sent decoded: {frame}")
         with self.lock:
             while data:
                 l = self._send(data)
+                # If we sent it all, don't bother slicing the data and looping.
+                if l == length:
+                    break
                 data = data[l:]
 
         return length

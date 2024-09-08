@@ -274,7 +274,7 @@ class WebSocketApp:
         self.has_done_teardown = False
         self.has_done_teardown_lock = threading.Lock()
 
-    def send(self, data: Union[bytes, str], opcode: int = ABNF.OPCODE_TEXT, use_frame_mask: bool = True) -> None:
+    def send(self, data: Union[bytes, str], opcode: int = ABNF.OPCODE_TEXT, use_frame_mask: bool = True, data_start_offset_bytes: Union[int, None] = None, data_msg_length_bytes: Union[int, None] = None) -> None:
         """
         send message
 
@@ -287,9 +287,16 @@ class WebSocketApp:
             Operation code of data. Default is OPCODE_TEXT.
         use_frame_mask: bool
             Whether to mask the data in the websocket frame sent. Default is True.
+        data_start_offset_bytes: int
+            Optional - The start offset into the buffer of data to send.
+            If there's enough room at the front of the buffer to append the websocket frame header this will avoid a buffer copy.
+            The `data` buffer type must be an bytearray or memoryview for this to work.
+        data_msg_length_bytes: int
+            Optional - The size of the data in the buffer send.
+            If not specified, the full buffer length is assumed to be the message size.
         """
 
-        if not self.sock or self.sock.send(data, opcode, use_frame_mask) == 0:
+        if not self.sock or self.sock.send(data, opcode, use_frame_mask, data_start_offset_bytes, data_msg_length_bytes) == 0:
             raise WebSocketConnectionClosedException("Connection is already closed.")
 
     def send_text(self, text_data: str) -> None:
