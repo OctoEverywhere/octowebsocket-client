@@ -10,7 +10,7 @@ from ._exceptions import WebSocketProtocolException, WebSocketConnectionClosedEx
 from ._handshake import SUPPORTED_REDIRECT_STATUSES, handshake
 from ._http import connect, proxy_info
 from ._logging import debug, error, trace, isEnabledForError, isEnabledForTrace
-from ._socket import getdefaulttimeout, recv, send, sock_opt
+from ._socket import getdefaulttimeout, recv_into, send, sock_opt
 from ._ssl_compat import ssl
 from ._utils import NoLock
 
@@ -99,7 +99,7 @@ class WebSocket:
         self.connected = False
         self.get_mask_key = get_mask_key
         # These buffer over the build-up of a single frame.
-        self.frame_buffer = frame_buffer(self._recv, skip_utf8_validation)
+        self.frame_buffer = frame_buffer(self._recv_into, skip_utf8_validation)
         self.cont_frame = continuous_frame(fire_cont_frame, skip_utf8_validation)
 
         if enable_multithread:
@@ -448,7 +448,7 @@ class WebSocket:
             frame = self.recv_frame()
             if isEnabledForTrace():
                 trace(f"++Rcv raw: {repr(frame.format())}")
-                trace(f"++Rcv decoded: {frame.__str__()}")
+                trace(f"++Rcv decoded: {frame}")
             if not frame:
                 # handle error:
                 # 'NoneType' object has no attribute 'opcode'
@@ -458,6 +458,14 @@ class WebSocket:
                 ABNF.OPCODE_BINARY,
                 ABNF.OPCODE_CONT,
             ):
+                # If we aren't building a cont frame and this is a final frame,
+                # we have the whole frame so we can return it.
+                if not self.cont_frame.is_building() and frame.fin:
+                    if frame.opcode == ABNF.OPCODE_CONT:
+                        raise WebSocketProtocolException("Illegal frame")
+                    return frame.opcode, frame
+
+                # Otherwise, we need to validate and add the frame to the cont_frame.
                 self.cont_frame.validate(frame)
                 self.cont_frame.add(frame)
 
@@ -569,9 +577,9 @@ class WebSocket:
     def _send(self, data: Union[str, bytes]):
         return send(self.sock, data)
 
-    def _recv(self, bufsize):
+    def _recv_into(self, buffer:Union[bytearray, memoryview]) -> int:
         try:
-            return recv(self.sock, bufsize)
+            return recv_into(self.sock, buffer)
         except WebSocketConnectionClosedException:
             if self.sock:
                 self.sock.close()
