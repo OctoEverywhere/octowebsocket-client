@@ -47,6 +47,7 @@ __all__ = [
     "setdefaulttimeout",
     "getdefaulttimeout",
     "recv",
+    "recv_into",
     "recv_line",
     "send",
 ]
@@ -132,6 +133,52 @@ def recv(sock: socket.socket, bufsize: int) -> bytes:
         raise WebSocketConnectionClosedException("Connection to remote host was lost.")
 
     return bytes_
+
+
+# Fills the entire buffer with data from the socket
+def recv_into(sock: socket.socket, buffer: Union[bytearray, memoryview]) -> int:
+    if not sock:
+        raise WebSocketConnectionClosedException("socket is already closed.")
+
+    def _recv():
+        try:
+            return sock.recv_into(buffer)
+        except SSLWantReadError:
+            pass
+        except socket.error as exc:
+            error_code = extract_error_code(exc)
+            if error_code not in [errno.EAGAIN, errno.EWOULDBLOCK]:
+                raise
+
+        with selectors.DefaultSelector() as sel:
+            sel.register(sock, selectors.EVENT_READ)
+            r = sel.select(sock.gettimeout())
+            if r:
+                return sock.recv_into(buffer)
+        return 0
+
+    bytes_read = 0
+    try:
+        if sock.gettimeout() == 0:
+            bytes_read = sock.recv_into(buffer)
+        else:
+            bytes_read = _recv()
+    except TimeoutError:
+        raise WebSocketTimeoutException("Connection timed out")
+    except socket.timeout as e:
+        message = extract_err_message(e)
+        raise WebSocketTimeoutException(message)
+    except SSLError as e:
+        message = extract_err_message(e)
+        if isinstance(message, str) and "timed out" in message:
+            raise WebSocketTimeoutException(message)
+        else:
+            raise
+
+    if bytes_read == 0:
+        raise WebSocketConnectionClosedException("Connection to remote host was lost.")
+
+    return bytes_read
 
 
 def recv_line(sock: socket.socket) -> bytes:

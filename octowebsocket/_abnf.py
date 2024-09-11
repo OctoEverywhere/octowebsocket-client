@@ -168,6 +168,7 @@ class ABNF:
             data = ""
         self.data = data
         self.data_start_offset_bytes = 0 if data_start_offset_bytes is None else data_start_offset_bytes
+        self.data_msg_length_bytes = len(self.data) if data_msg_length_bytes is None else data_msg_length_bytes
         self.get_mask_key = os.urandom
 
     def validate(self, skip_utf8_validation: bool = False) -> None:
@@ -226,7 +227,12 @@ class ABNF:
             Whether to mask the data in the websocket frame sent. Default is True.
         """
         if opcode == ABNF.OPCODE_TEXT and isinstance(data, str):
+            if data_start_offset_bytes is not None:
+                raise ValueError("data_start_offset_bytes must be None if data is str")
             data = data.encode("utf-8")
+            data_start_offset_bytes = None
+            data_msg_length_bytes = None
+
         # OctoChange
         # From the websocket rfc, a mask must be set if send data from client.
         # However, computing the mask adds a measurable amount of overhead and is unnecessary if SSL is being used to secure the connection.
@@ -243,8 +249,12 @@ class ABNF:
         if self.opcode not in ABNF.OPCODES:
             raise ValueError("Invalid OPCODE")
 
-        length = len(self.data) - self.data_start_offset_bytes
-        if length >= ABNF.LENGTH_63:
+        if isinstance(self.data, str):
+            self.data = self.data.encode("utf-8")
+            self.data_start_offset_bytes = 0
+            self.data_msg_length_bytes = len(self.data)
+
+        if self.data_msg_length_bytes >= ABNF.LENGTH_63:
             raise ValueError("data is too long")
 
         frame_header = chr(
@@ -254,39 +264,36 @@ class ABNF:
             | self.rsv3 << 4
             | self.opcode
         ).encode("latin-1")
-        if length < ABNF.LENGTH_7:
-            frame_header += chr(self.mask_value << 7 | length).encode("latin-1")
-        elif length < ABNF.LENGTH_16:
+        if self.data_msg_length_bytes < ABNF.LENGTH_7:
+            frame_header += chr(self.mask_value << 7 | self.data_msg_length_bytes).encode("latin-1")
+        elif self.data_msg_length_bytes < ABNF.LENGTH_16:
             frame_header += chr(self.mask_value << 7 | 0x7E).encode("latin-1")
-            frame_header += struct.pack("!H", length)
+            frame_header += struct.pack("!H", self.data_msg_length_bytes)
         else:
             frame_header += chr(self.mask_value << 7 | 0x7F).encode("latin-1")
-            frame_header += struct.pack("!Q", length)
+            frame_header += struct.pack("!Q", self.data_msg_length_bytes)
 
         # If the data needs to be masked, mask it. There's no way to avoid copying the data here.
         if self.mask_value:
             mask_key = self.get_mask_key(4)
             self.data = self._get_masked(mask_key)
             self.data_start_offset_bytes = 0
-            length = len(self.data)
-
-        if isinstance(self.data, str):
-            self.data = self.data.encode("utf-8")
+            self.data_msg_length_bytes = len(self.data)
 
         # If there'e enough space in the data buffer, write the frame header there without copying.
         frame_header_len = len(frame_header)
         if frame_header_len < self.data_start_offset_bytes:
             self.data[self.data_start_offset_bytes-frame_header_len:self.data_start_offset_bytes] = frame_header
             self.data_start_offset_bytes -= frame_header_len
-            length += frame_header_len
+            self.data_msg_length_bytes += frame_header_len
         else:
             # Otherwise, copy the data to a new buffer.
             self.data = frame_header + self.data
             self.data_start_offset_bytes = 0
-            length = len(self.data)
+            self.data_msg_length_bytes = len(self.data)
 
         # Return a memoryview of the data buffer that contains the frame.
-        return memoryview(self.data)[self.data_start_offset_bytes:self.data_msg_length_bytes]
+        return memoryview(self.data)[self.data_start_offset_bytes:self.data_start_offset_bytes+self.data_msg_length_bytes]
 
 
     def _get_masked(self, mask_key: Union[str, bytes]) -> bytes:
@@ -326,13 +333,10 @@ class frame_buffer:
     _HEADER_LENGTH_INDEX = 6
 
     def __init__(
-        self, recv_fn: Callable[[int], int], skip_utf8_validation: bool
+        self, recv_into_fn: Callable[[Union[bytearray, memoryview]], int], skip_utf8_validation: bool
     ) -> None:
-        self.recv = recv_fn
+        self.recv_into = recv_into_fn
         self.skip_utf8_validation = skip_utf8_validation
-        # Buffers over the packets from the layer beneath until desired amount
-        # bytes of bytes are received.
-        self.recv_buffer: list = []
         self.clear()
         self.lock = Lock()
 
@@ -345,17 +349,16 @@ class frame_buffer:
         return self.header is None
 
     def recv_header(self) -> None:
-        header = self.recv_strict(2)
-        b1 = header[0]
+        header_buffer = self.recv_strict(2)
+        b1 = header_buffer[0]
         fin = b1 >> 7 & 1
         rsv1 = b1 >> 6 & 1
         rsv2 = b1 >> 5 & 1
         rsv3 = b1 >> 4 & 1
         opcode = b1 & 0xF
-        b2 = header[1]
+        b2 = header_buffer[1]
         has_mask = b2 >> 7 & 1
         length_bits = b2 & 0x7F
-
         self.header = (fin, rsv1, rsv2, rsv3, opcode, has_mask, length_bits)
 
     def has_mask(self) -> Union[bool, int]:
@@ -416,26 +419,27 @@ class frame_buffer:
         return frame
 
     def recv_strict(self, bufsize: int) -> bytes:
-        shortage = bufsize - sum(map(len, self.recv_buffer))
-        while shortage > 0:
-            # Limit buffer size that we pass to socket.recv() to avoid
-            # fragmenting the heap -- the number of bytes recv() actually
-            # reads is limited by socket buffer and is relatively small,
-            # yet passing large numbers repeatedly causes lots of large
-            # buffers allocated and then shrunk, which results in
-            # fragmentation.
-            bytes_ = self.recv(min(16384, shortage))
-            self.recv_buffer.append(bytes_)
-            shortage -= len(bytes_)
+        shortage = bufsize
+        # Allocate the full buffer size we are using, we will copy from the socket directly into it.
+        buffer = bytearray(bufsize)
+        with memoryview(buffer) as view:
+            recv_so_far_bytes = 0
+            while shortage > 0:
+                # Limit buffer size that we pass to socket.recv() to avoid
+                # fragmenting the heap -- the number of bytes recv() actually
+                # reads is limited by socket buffer and is relatively small,
+                # yet passing large numbers repeatedly causes lots of large
+                # buffers allocated and then shrunk, which results in
+                # fragmentation. 131072 is the default TCP buffer size on most Linux systems.
+                this_read_size_bytes = min(131072, shortage)
 
-        unified = b"".join(self.recv_buffer)
+                # Slicing the view isn't a copy, but it's sending a view of just that chunk of the buffer.
+                # As long as the buffer is under 16384, this recv_into will fill the full buffer in the first call.
+                bytes_read = self.recv_into(view[recv_so_far_bytes:recv_so_far_bytes+this_read_size_bytes])
+                recv_so_far_bytes += bytes_read
+                shortage -= bytes_read
 
-        if shortage == 0:
-            self.recv_buffer = []
-            return unified
-        else:
-            self.recv_buffer = [unified[bufsize:]]
-            return unified[:bufsize]
+            return buffer
 
 
 class continuous_frame:
@@ -444,6 +448,9 @@ class continuous_frame:
         self.skip_utf8_validation = skip_utf8_validation
         self.cont_data: Optional[list] = None
         self.recving_frames: Optional[int] = None
+
+    def is_building(self) -> bool:
+        return self.cont_data is not None
 
     def validate(self, frame: ABNF) -> None:
         if not self.recving_frames and frame.opcode == ABNF.OPCODE_CONT:
