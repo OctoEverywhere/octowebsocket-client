@@ -90,7 +90,6 @@ class Dispatcher(DispatcherBase):
                 check_callback()
 
 
-
 class SSLDispatcher(DispatcherBase):
     """
     SSLDispatcher
@@ -110,7 +109,6 @@ class SSLDispatcher(DispatcherBase):
                     if not read_callback():
                         break
                 check_callback()
-
 
     def select(self, sock, sel: selectors.DefaultSelector):
         sock = self.app.sock.sock

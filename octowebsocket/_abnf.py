@@ -283,7 +283,7 @@ class ABNF:
         # If there'e enough space in the data buffer, write the frame header there without copying.
         frame_header_len = len(frame_header)
         if frame_header_len < self.data_start_offset_bytes:
-            self.data[self.data_start_offset_bytes-frame_header_len:self.data_start_offset_bytes] = frame_header
+            self.data[self.data_start_offset_bytes - frame_header_len:self.data_start_offset_bytes] = frame_header
             self.data_start_offset_bytes -= frame_header_len
             self.data_msg_length_bytes += frame_header_len
         else:
@@ -293,8 +293,7 @@ class ABNF:
             self.data_msg_length_bytes = len(self.data)
 
         # Return a memoryview of the data buffer that contains the frame.
-        return memoryview(self.data)[self.data_start_offset_bytes:self.data_start_offset_bytes+self.data_msg_length_bytes]
-
+        return memoryview(self.data)[self.data_start_offset_bytes:self.data_start_offset_bytes + self.data_msg_length_bytes]
 
     def _get_masked(self, mask_key: Union[str, bytes]) -> bytes:
         s = ABNF.mask(mask_key, self.data)
@@ -435,7 +434,7 @@ class frame_buffer:
 
                 # Slicing the view isn't a copy, but it's sending a view of just that chunk of the buffer.
                 # As long as the buffer is under 16384, this recv_into will fill the full buffer in the first call.
-                bytes_read = self.recv_into(view[recv_so_far_bytes:recv_so_far_bytes+this_read_size_bytes])
+                bytes_read = self.recv_into(view[recv_so_far_bytes:recv_so_far_bytes + this_read_size_bytes])
                 recv_so_far_bytes += bytes_read
                 shortage -= bytes_read
 
