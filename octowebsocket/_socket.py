@@ -1,7 +1,7 @@
 import errno
 import selectors
 import socket
-from typing import Optional, Union, Any
+from typing import Optional, Union, Any, List, Dict
 
 from ._exceptions import (
     WebSocketConnectionClosedException,
@@ -55,7 +55,7 @@ __all__ = [
 
 class sock_opt:
     def __init__(
-        self, sockopt: Optional[list[tuple]], sslopt: Optional[dict[str, Any]]
+        self, sockopt: Optional[List[tuple]], sslopt: Optional[Dict[str, Any]]
     ) -> None:
         if sockopt is None:
             sockopt = []

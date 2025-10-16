@@ -35,9 +35,9 @@ from ._url import get_proxy_info, parse_url
 __all__ = ["proxy_info", "connect", "read_headers"]
 
 try:
-    from python_socks._errors import ProxyConnectionError, ProxyError, ProxyTimeoutError
-    from python_socks._types import ProxyType
-    from python_socks.sync import Proxy
+    from python_socks._errors import ProxyConnectionError, ProxyError, ProxyTimeoutError # pyright: ignore[reportMissingImports]
+    from python_socks._types import ProxyType # pyright: ignore[reportMissingImports]
+    from python_socks.sync import Proxy # pyright: ignore[reportMissingImports]
 
     HAVE_PYTHON_SOCKS = True
 except:
@@ -302,7 +302,7 @@ def _wrap_sni_socket(sock: socket.socket, sslopt: dict, hostname, check_hostname
                     )
                 certfile, keyfile, password = cert_chain
                 context.load_cert_chain(certfile, keyfile, password)
-            except ValueError:
+            except ValueError: #pylint: disable=try-except-raise
                 raise
             except (FileNotFoundError, ssl.SSLError) as e:
                 raise WebSocketException(

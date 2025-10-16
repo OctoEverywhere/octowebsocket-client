@@ -3,7 +3,7 @@ import os
 import struct
 import sys
 from threading import Lock
-from typing import Callable, Optional, Union, Any
+from typing import Callable, Optional, Union, Any, List
 
 from ._exceptions import WebSocketPayloadException, WebSocketProtocolException
 from ._utils import validate_utf8
@@ -18,7 +18,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+    http://www.apache.org/licenses/LICENSE-2.04
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -32,7 +32,7 @@ try:
     # wsaccel only provides around a 10% speed boost compared
     # to the websocket-client _mask() implementation.
     # Note that wsaccel is unmaintained.
-    from wsaccel.xormask import XorMaskerSimple
+    from wsaccel.xormask import XorMaskerSimple # pyright: ignore[reportMissingImports]
 
     def _mask(mask_value: array.array, data_value: array.array) -> bytes:
         mask_result: bytes = XorMaskerSimple(mask_value).process(data_value)
@@ -465,7 +465,7 @@ class continuous_frame:
     def __init__(self, fire_cont_frame: bool, skip_utf8_validation: bool) -> None:
         self.fire_cont_frame = fire_cont_frame
         self.skip_utf8_validation = skip_utf8_validation
-        self.cont_data: Optional[list[Any]] = None
+        self.cont_data: Optional[List[Any]] = None
         self.recving_frames: Optional[int] = None
 
     def is_building(self) -> bool:
