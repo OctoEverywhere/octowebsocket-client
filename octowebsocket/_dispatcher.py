@@ -2,7 +2,7 @@ import time
 import socket
 import inspect
 import selectors
-from typing import TYPE_CHECKING, Callable, Union, Any
+from typing import TYPE_CHECKING, Callable, Optional, Union
 
 from . import _logging
 from ._socket import send
@@ -34,12 +34,15 @@ class DispatcherBase:
     DispatcherBase
     """
 
-    def __init__(self, app: Any, ping_timeout: Union[float, int, None]) -> None:
+    def __init__(
+        self, app: "WebSocketApp", ping_timeout: Optional[Union[float, int]]
+    ) -> None:
         self.app = app
         self.ping_timeout = ping_timeout
 
-    def timeout(self, seconds: Union[float, int, None], callback: Callable) -> None:
-        time.sleep(seconds)
+    def timeout(self, seconds: Optional[Union[float, int]], callback: Callable) -> None:
+        if seconds is not None:
+            time.sleep(seconds)
         callback()
 
     def reconnect(self, seconds: int, reconnector: Callable) -> None:
@@ -53,6 +56,9 @@ class DispatcherBase:
             _logging.info(f"User exited {e}")
             raise e
 
+    def send(self, sock: socket.socket, data: Union[str, bytes]) -> int:
+        return send(sock, data)
+
 
 class Dispatcher(DispatcherBase):
     """
@@ -65,6 +71,8 @@ class Dispatcher(DispatcherBase):
         read_callback: Callable,
         check_callback: Callable,
     ) -> None:
+        if self.app.sock is None or self.app.sock.sock is None:
+            return
         with selectors.DefaultSelector() as sel:
             sel.register(self.app.sock.sock, selectors.EVENT_READ)
             while self.app.keep_running:
@@ -85,6 +93,8 @@ class SSLDispatcher(DispatcherBase):
         read_callback: Callable,
         check_callback: Callable,
     ) -> None:
+        if self.app.sock is None or self.app.sock.sock is None:
+            return
         sock = self.app.sock.sock
         with selectors.DefaultSelector() as sel:
             sel.register(sock, selectors.EVENT_READ)
@@ -95,6 +105,8 @@ class SSLDispatcher(DispatcherBase):
                 check_callback()
 
     def select(self, sock, sel: selectors.DefaultSelector):
+        if self.app.sock is None:
+            return None
         sock = self.app.sock.sock
         if sock.pending():
             return [
@@ -105,6 +117,7 @@ class SSLDispatcher(DispatcherBase):
 
         if len(r) > 0:
             return r[0][0]
+        return None
 
 
 class WrappedDispatcher:
@@ -112,10 +125,17 @@ class WrappedDispatcher:
     WrappedDispatcher
     """
 
-    def __init__(self, app, ping_timeout: Union[float, int, None], dispatcher) -> None:
+    def __init__(
+        self,
+        app: "WebSocketApp",
+        ping_timeout: Optional[Union[float, int]],
+        dispatcher,
+        handleDisconnect,
+    ) -> None:
         self.app = app
         self.ping_timeout = ping_timeout
         self.dispatcher = dispatcher
+        self.handleDisconnect = handleDisconnect
         dispatcher.signal(2, dispatcher.abort)  # keyboard interrupt
 
     def read(
@@ -125,10 +145,15 @@ class WrappedDispatcher:
         check_callback: Callable,
     ) -> None:
         self.dispatcher.read(sock, read_callback)
-        self.ping_timeout and self.timeout(self.ping_timeout, check_callback)
+        if self.ping_timeout:
+            self.timeout(self.ping_timeout, check_callback)
 
-    def timeout(self, seconds: float, callback: Callable) -> None:
-        self.dispatcher.timeout(seconds, callback)
+    def send(self, sock: socket.socket, data: Union[str, bytes]) -> int:
+        self.dispatcher.buffwrite(sock, data, send, self.handleDisconnect)
+        return len(data)
+
+    def timeout(self, seconds: float, callback: Callable, *args) -> None:
+        self.dispatcher.timeout(seconds, callback, *args)
 
     def reconnect(self, seconds: int, reconnector: Callable) -> None:
-        self.timeout(seconds, reconnector)
+        self.timeout(seconds, reconnector, True)
