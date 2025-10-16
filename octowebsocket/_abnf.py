@@ -203,7 +203,7 @@ class ABNF:
 
             data_bytes = (
                 self.data[:2]
-                if isinstance(self.data, bytes)
+                if isinstance(self.data, (bytes, bytearray)) # OctoChange - handle bytearray
                 else self.data[:2].encode("utf-8")
             )
             code = struct.unpack("!H", data_bytes)[0]
