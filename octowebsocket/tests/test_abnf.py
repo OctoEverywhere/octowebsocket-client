@@ -51,6 +51,9 @@ class ABNFTest(unittest.TestCase):
             a_bad_rsv_value.validate,
             skip_utf8_validation=False,
         )
+        a_compressed = ABNF(0, 1, 0, 0, opcode=ABNF.OPCODE_TEXT, data=b"test")
+        # Should not raise when compression is allowed.
+        a_compressed.validate(skip_utf8_validation=False, allow_compression=True)
         a_bad_opcode = ABNF(0, 0, 0, 0, opcode=77)
         self.assertRaises(
             WebSocketProtocolException,

@@ -125,6 +125,20 @@ def _get_handshake_headers(
         headers.append(f'Sec-WebSocket-Protocol: {",".join(subprotocols)}')
 
     header = options.get("header")
+    has_extension_header = False
+    if isinstance(header, dict):
+        has_extension_header = any(
+            k.lower() == "sec-websocket-extensions" for k in header.keys()
+        )
+    elif isinstance(header, (list, tuple)):
+        has_extension_header = any(
+            str(item).lower().startswith("sec-websocket-extensions:")
+            for item in header
+        )
+
+    if options.get("enable_compression") and not has_extension_header:
+        headers.append("Sec-WebSocket-Extensions: permessage-deflate")
+
     if header:
         if isinstance(header, dict):
             header = [": ".join([k, v]) for k, v in header.items() if v is not None]

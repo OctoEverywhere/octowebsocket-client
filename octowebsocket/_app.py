@@ -74,6 +74,7 @@ class WebSocketApp:
         subprotocols: Optional[List[str]] = None,
         on_data: Optional[Callable] = None,
         socket: Optional[socket.socket] = None,
+        enable_compression: bool = False,
     ) -> None:
         """
         WebSocketApp initialization
@@ -137,6 +138,8 @@ class WebSocketApp:
             Cookie value.
         subprotocols: list
             List of available sub protocols. Default is None.
+        enable_compression: bool
+            Offer the permessage-deflate extension during the handshake.
         socket: socket
             Pre-initialized stream socket.
         """
@@ -165,6 +168,7 @@ class WebSocketApp:
         self.ping_payload = ""
         self.subprotocols = subprotocols
         self.prepared_socket = socket
+        self.enable_compression = enable_compression
         self.has_errored = False
         self.has_done_teardown = False
         self.has_done_teardown_lock = threading.Lock()
@@ -406,6 +410,7 @@ class WebSocketApp:
                 skip_utf8_validation=skip_utf8_validation,
                 enable_multithread=True,
                 dispatcher=dispatcher,
+                enable_compression=self.enable_compression,
             )
 
             self.sock.settimeout(getdefaulttimeout())
@@ -427,6 +432,7 @@ class WebSocketApp:
                     suppress_origin=suppress_origin,
                     proxy_type=proxy_type,
                     socket=self.prepared_socket,
+                    enable_compression=self.enable_compression,
                 )
 
                 _logging.info("Websocket connected")

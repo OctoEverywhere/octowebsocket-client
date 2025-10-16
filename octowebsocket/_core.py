@@ -6,6 +6,7 @@ from typing import Optional, Union
 
 # websocket modules
 from ._abnf import ABNF, STATUS_NORMAL, continuous_frame, frame_buffer
+from ._compression import PerMessageDeflate, parse_permessage_deflate
 from ._exceptions import (
     WebSocketProtocolException,
     WebSocketConnectionClosedException,
@@ -88,6 +89,7 @@ class WebSocket:
         enable_multithread: bool = True,
         skip_utf8_validation: bool = False,
         dispatcher: Union[DispatcherBase, WrappedDispatcher] = None,
+        enable_compression: bool = False,
         **_,
     ):
         """
@@ -108,6 +110,9 @@ class WebSocket:
         self.frame_buffer = frame_buffer(self._recv_into, skip_utf8_validation)
         self.cont_frame = continuous_frame(fire_cont_frame, skip_utf8_validation)
         self.dispatcher = dispatcher
+        self._compression_requested = enable_compression
+        self._compression_active = False
+        self._permessage_deflate: Optional[PerMessageDeflate] = None
 
         if enable_multithread:
             self.lock = threading.Lock()
@@ -235,6 +240,8 @@ class WebSocket:
         connection: str
             Custom connection header value.
             Default value "Upgrade" set in _handshake.py
+        enable_compression: bool
+            Offer the permessage-deflate extension during the handshake.
         suppress_origin: bool
             Suppress outputting origin header.
         host: str
@@ -260,6 +267,8 @@ class WebSocket:
             Pre-initialized stream socket.
         """
         self.sock_opt.timeout = options.get("timeout", self.sock_opt.timeout)
+        requested_compression = options.get("enable_compression", self._compression_requested)
+        self._compression_requested = requested_compression
         self.sock, addrs = connect(
             url, self.sock_opt, proxy_info(**options), options.pop("socket", None)
         )
@@ -279,12 +288,45 @@ class WebSocket:
                     self.handshake_response = handshake(
                         self.sock, url, *addrs, **options
                     )
+            self._configure_compression(requested_compression)
             self.connected = True
         except:
             if self.sock:
                 self.sock.close()
                 self.sock = None
             raise
+
+    def _configure_compression(self, requested: bool) -> None:
+        self._compression_active = False
+        self._permessage_deflate = None
+
+        if not requested or not self.handshake_response:
+            return
+
+        headers = self.handshake_response.headers or {}
+        extension_header = headers.get("sec-websocket-extensions")
+        params = parse_permessage_deflate(extension_header)
+        if params is None:
+            return
+
+        server_max_window_bits = params.get("server_max_window_bits")
+        if not isinstance(server_max_window_bits, int):
+            server_max_window_bits = None
+        client_max_window_bits = params.get("client_max_window_bits")
+        if not isinstance(client_max_window_bits, int):
+            client_max_window_bits = None
+
+        self._permessage_deflate = PerMessageDeflate(
+            server_no_context_takeover=bool(
+                params.get("server_no_context_takeover")
+            ),
+            client_no_context_takeover=bool(
+                params.get("client_no_context_takeover")
+            ),
+            server_max_window_bits=server_max_window_bits,
+            client_max_window_bits=client_max_window_bits,
+        )
+        self._compression_active = True
 
     def send(self, payload: Union[bytes, str], opcode: int = ABNF.OPCODE_TEXT, use_frame_mask: bool = True, data_start_offset_bytes: Union[int, None] = None, data_msg_length_bytes: Union[int, None] = None) -> int:
         """
@@ -309,7 +351,33 @@ class WebSocket:
             If not specified, the full buffer length is assumed to be the message size.
         """
 
-        frame = ABNF.create_frame(payload, opcode, use_frame_mask=use_frame_mask, data_start_offset_bytes=data_start_offset_bytes, data_msg_length_bytes=data_msg_length_bytes)
+        rsv1 = 0
+        if (
+            self._compression_active
+            and self._permessage_deflate
+            and opcode in (ABNF.OPCODE_TEXT, ABNF.OPCODE_BINARY)
+        ):
+            if isinstance(payload, str):
+                payload_bytes = payload.encode("utf-8")
+            elif isinstance(payload, (bytes, bytearray)):
+                payload_bytes = bytes(payload)
+            elif isinstance(payload, memoryview):
+                payload_bytes = payload.tobytes()
+            else:
+                payload_bytes = bytes(payload)
+            payload = self._permessage_deflate.compress(payload_bytes)
+            rsv1 = 1
+            data_start_offset_bytes = None
+            data_msg_length_bytes = None
+
+        frame = ABNF.create_frame(
+            payload,
+            opcode,
+            use_frame_mask=use_frame_mask,
+            data_start_offset_bytes=data_start_offset_bytes,
+            data_msg_length_bytes=data_msg_length_bytes,
+            rsv1=rsv1,
+        )
         return self.send_frame(frame)
 
     def send_text(self, text_data: str) -> int:
@@ -471,6 +539,7 @@ class WebSocket:
                 if not self.cont_frame.is_building() and frame.fin:
                     if frame.opcode == ABNF.OPCODE_CONT:
                         raise WebSocketProtocolException("Illegal frame")
+                    self._maybe_decompress(frame)
                     return frame.opcode, frame
 
                 # Otherwise, we need to validate and add the frame to the cont_frame.
@@ -478,7 +547,10 @@ class WebSocket:
                 self.cont_frame.add(frame)
 
                 if self.cont_frame.is_fire(frame):
-                    return self.cont_frame.extract(frame)
+                    opcode, merged_frame = self.cont_frame.extract(frame)
+                    if merged_frame.fin:
+                        self._maybe_decompress(merged_frame)
+                    return opcode, merged_frame
 
             elif frame.opcode == ABNF.OPCODE_CLOSE:
                 self.send_close()
@@ -502,7 +574,31 @@ class WebSocket:
         -------
         self.frame_buffer.recv_frame(): ABNF frame object
         """
-        return self.frame_buffer.recv_frame()
+        return self.frame_buffer.recv_frame(self._compression_active)
+
+    def _maybe_decompress(self, frame: ABNF) -> None:
+        if (
+            not self._compression_active
+            or not self._permessage_deflate
+            or frame.opcode not in (ABNF.OPCODE_TEXT, ABNF.OPCODE_BINARY)
+            or not frame.rsv1
+            or not frame.fin
+        ):
+            return
+
+        payload = frame.data
+        if isinstance(payload, memoryview):
+            payload_bytes = payload.tobytes()
+        elif isinstance(payload, bytearray):
+            payload_bytes = bytes(payload)
+        else:
+            payload_bytes = payload
+
+        if not isinstance(payload_bytes, (bytes, bytearray)):
+            payload_bytes = bytes(payload_bytes)
+
+        frame.data = self._permessage_deflate.decompress(payload_bytes)
+        frame.rsv1 = 0
 
     def send_close(self, status: int = STATUS_NORMAL, reason: bytes = b""):
         """
@@ -664,6 +760,8 @@ def create_connection(url: str, timeout=None, class_=WebSocket, **options):
         List of available subprotocols. Default is None.
     skip_utf8_validation: bool
         Skip utf8 validation.
+    enable_compression: bool
+        Offer the permessage-deflate extension during the handshake.
     socket: socket
         Pre-initialized stream socket.
     """

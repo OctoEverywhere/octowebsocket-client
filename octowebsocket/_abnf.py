@@ -171,7 +171,9 @@ class ABNF:
         self.data_msg_length_bytes = len(self.data) if data_msg_length_bytes is None else data_msg_length_bytes
         self.get_mask_key = os.urandom
 
-    def validate(self, skip_utf8_validation: bool = False) -> None:
+    def validate(
+        self, skip_utf8_validation: bool = False, allow_compression: bool = False
+    ) -> None:
         """
         Validate the ABNF frame.
 
@@ -179,8 +181,11 @@ class ABNF:
         ----------
         skip_utf8_validation: skip utf8 validation.
         """
-        if self.rsv1 or self.rsv2 or self.rsv3:
+        if self.rsv2 or self.rsv3:
             raise WebSocketProtocolException("rsv is not implemented, yet")
+
+        if self.rsv1 and not allow_compression:
+            raise WebSocketProtocolException("rsv1 is not implemented, yet")
 
         if self.opcode not in ABNF.OPCODES:
             raise WebSocketProtocolException("Invalid opcode %r", self.opcode)
@@ -219,7 +224,15 @@ class ABNF:
         return f"fin={self.fin} opcode={self.opcode} data={data_repr}"
 
     @staticmethod
-    def create_frame(data: Union[bytes, str], opcode: int, fin: int = 1, use_frame_mask: bool = True, data_start_offset_bytes: Union[int, None] = None, data_msg_length_bytes: Union[int, None] = None) -> "ABNF":
+    def create_frame(
+        data: Union[bytes, str],
+        opcode: int,
+        fin: int = 1,
+        use_frame_mask: bool = True,
+        data_start_offset_bytes: Union[int, None] = None,
+        data_msg_length_bytes: Union[int, None] = None,
+        rsv1: int = 0,
+    ) -> "ABNF":
         """
         Create frame to send text, binary and other data.
 
@@ -248,7 +261,17 @@ class ABNF:
         # However, computing the mask adds a measurable amount of overhead and is unnecessary if SSL is being used to secure the connection.
         # Most modern web servers will accept unmasked data when sent over SSL, thus making this optional can help performance.
         mask_value = 1 if use_frame_mask else 0
-        return ABNF(fin, 0, 0, 0, opcode, mask_value, data, data_start_offset_bytes, data_msg_length_bytes)
+        return ABNF(
+            fin,
+            rsv1,
+            0,
+            0,
+            opcode,
+            mask_value,
+            data,
+            data_start_offset_bytes,
+            data_msg_length_bytes,
+        )
 
     def format(self) -> memoryview:
         """
@@ -399,7 +422,7 @@ class frame_buffer:
     def recv_mask(self) -> None:
         self.mask_value = self.recv_strict(4) if self.has_mask() else ""
 
-    def recv_frame(self) -> ABNF:
+    def recv_frame(self, allow_compression: bool = False) -> ABNF:
         with self.lock:
             # Header
             if self.needs_header():
@@ -431,7 +454,7 @@ class frame_buffer:
             self.clear()
 
             frame = ABNF(fin, rsv1, rsv2, rsv3, opcode, has_mask, payload)
-            frame.validate(self.skip_utf8_validation)
+            frame.validate(self.skip_utf8_validation, allow_compression)
 
         return frame
 
@@ -467,6 +490,7 @@ class continuous_frame:
         self.skip_utf8_validation = skip_utf8_validation
         self.cont_data: Optional[List[Any]] = None
         self.recving_frames: Optional[int] = None
+        self.compressed: Optional[bool] = None
 
     def is_building(self) -> bool:
         return self.cont_data is not None
@@ -487,6 +511,7 @@ class continuous_frame:
             if frame.opcode in (ABNF.OPCODE_TEXT, ABNF.OPCODE_BINARY):
                 self.recving_frames = frame.opcode
             self.cont_data = [frame.opcode, frame.data]
+            self.compressed = bool(frame.rsv1)
 
         if frame.fin:
             self.recving_frames = None
@@ -499,6 +524,9 @@ class continuous_frame:
         if data is None:
             raise WebSocketProtocolException("No continuation data available")
         self.cont_data = None
+        frame.rsv1 = 1 if self.compressed else 0
+        if frame.fin:
+            self.compressed = None
         frame.data = data[1]
         if (
             not self.fire_cont_frame
