@@ -5,7 +5,13 @@ import unittest
 from unittest.mock import Mock, patch, MagicMock
 import time
 
-from octowebsocket._socket import recv, recv_line, send, DEFAULT_SOCKET_OPTION
+from octowebsocket._socket import (
+    DEFAULT_SOCKET_OPTION,
+    recv,
+    recv_into,
+    recv_line,
+    send,
+)
 from octowebsocket._ssl_compat import (
     SSLError,
     SSLEOFError,
@@ -155,6 +161,21 @@ class SocketTest(unittest.TestCase):
             with self.assertRaises(WebSocketTimeoutException):
                 recv(mock_sock, 100)
 
+    def test_recv_into_ssl_want_read_timeout(self):
+        """Test recv_into with SSLWantReadError that times out"""
+        mock_sock = Mock()
+        mock_sock.recv_into.side_effect = SSLWantReadError()
+        mock_sock.gettimeout.return_value = 1.0
+
+        with patch("selectors.DefaultSelector") as mock_selector_class:
+            mock_selector = Mock()
+            mock_selector_class.return_value.__enter__.return_value = mock_selector
+            mock_selector_class.return_value.__exit__.return_value = False
+            mock_selector.select.return_value = []  # Timeout
+
+            with self.assertRaises(WebSocketTimeoutException):
+                recv_into(mock_sock, bytearray(100))
+
     def test_recv_line(self):
         """Test recv_line functionality"""
         mock_sock = Mock()
@@ -162,7 +183,7 @@ class SocketTest(unittest.TestCase):
         # Mock recv to return one character at a time
         recv_calls = [b"H", b"e", b"l", b"l", b"o", b"\n"]
 
-        with patch("websocket._socket.recv", side_effect=recv_calls) as mock_recv:
+        with patch("octowebsocket._socket.recv", side_effect=recv_calls) as mock_recv:
             result = recv_line(mock_sock)
 
             self.assertEqual(result, b"Hello\n")

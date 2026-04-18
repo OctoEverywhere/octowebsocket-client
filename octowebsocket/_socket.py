@@ -150,6 +150,10 @@ def recv(sock: socket.socket, bufsize: int) -> bytes:
 def recv_into(sock: socket.socket, buffer: Union[bytearray, memoryview]) -> int:
     if not sock:
         raise WebSocketConnectionClosedException("socket is already closed.")
+    if not hasattr(sock, "recv_into"):
+        data = recv(sock, len(buffer))
+        buffer[: len(data)] = data
+        return len(data)
 
     def _recv():
         try:
@@ -166,7 +170,7 @@ def recv_into(sock: socket.socket, buffer: Union[bytearray, memoryview]) -> int:
             r = sel.select(sock.gettimeout())
             if r:
                 return sock.recv_into(buffer)
-        return 0
+            raise WebSocketTimeoutException("Connection timed out waiting for data")
 
     bytes_read = 0
     try:
@@ -241,7 +245,7 @@ def send(sock: socket.socket, data: Union[bytes, str]) -> int:
     except socket.timeout as e:
         message = extract_err_message(e)
         raise WebSocketTimeoutException(message)
-    except (OSError, SSLError) as e:
+    except Exception as e:
         message = extract_err_message(e)
         if isinstance(message, str) and "timed out" in message:
             raise WebSocketTimeoutException(message)

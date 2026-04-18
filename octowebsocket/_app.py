@@ -45,6 +45,11 @@ def set_reconnect(reconnectInterval: int) -> None:
     RECONNECT = reconnectInterval
 
 
+# Backward-compatible alias kept for existing callers.
+def setReconnect(reconnectInterval: int) -> None:
+    set_reconnect(reconnectInterval)
+
+
 class WebSocketApp:
     """
     Higher level of APIs are provided. The interface is like JavaScript WebSocket object.
@@ -196,18 +201,18 @@ class WebSocketApp:
         if not self.sock or self.sock.send(data, opcode, use_frame_mask, data_start_offset_bytes, data_msg_length_bytes) == 0:
             raise WebSocketConnectionClosedException("Connection is already closed.")
 
-    def send_text(self, text_data: str) -> None:
+    def send_text(self, text_data: str, use_frame_mask: bool = True) -> None:
         """
         Sends UTF-8 encoded text.
         """
-        if not self.sock or self.sock.send(text_data, ABNF.OPCODE_TEXT) == 0:
+        if not self.sock or self.sock.send(text_data, ABNF.OPCODE_TEXT, use_frame_mask) == 0:
             raise WebSocketConnectionClosedException("Connection is already closed.")
 
-    def send_bytes(self, data: Union[bytes, bytearray]) -> None:
+    def send_bytes(self, data: Union[bytes, bytearray], use_frame_mask: bool = True) -> None:
         """
         Sends a sequence of bytes.
         """
-        if not self.sock or self.sock.send(data, ABNF.OPCODE_BINARY) == 0:
+        if not self.sock or self.sock.send(data, ABNF.OPCODE_BINARY, use_frame_mask) == 0:
             raise WebSocketConnectionClosedException("Connection is already closed.")
 
     def close(self, **kwargs) -> None:
@@ -471,7 +476,8 @@ class WebSocketApp:
                     raise e
 
             if op_code == ABNF.OPCODE_CLOSE:
-                return closed(frame)
+                teardown(frame)
+                return False
             elif op_code == ABNF.OPCODE_PING:
                 self._callback(self.on_ping, frame.data)
             elif op_code == ABNF.OPCODE_PONG:

@@ -5,6 +5,7 @@ import os.path
 import ssl
 import threading
 import unittest
+from unittest.mock import Mock, patch
 
 import octowebsocket as ws
 
@@ -389,6 +390,72 @@ class WebSocketAppTest(unittest.TestCase):
         dispatcher = app.create_dispatcher(ping_timeout=None, is_ssl=False)
         self.assertIsInstance(dispatcher, ws._dispatcher.Dispatcher)
         self.assertEqual(dispatcher.ping_timeout, 10)
+
+    def test_run_forever_close_frame_is_clean_shutdown(self):
+        """A close frame should not trigger on_error and should preserve close args."""
+
+        class FakeDispatcher:
+            def read(self, sock, read_callback, check_callback):
+                del sock, check_callback
+                return read_callback()
+
+        class FakeWebSocket:
+            def __init__(self, *args, **kwargs):
+                del args, kwargs
+                self.sock = Mock()
+                self.connected = True
+
+            def settimeout(self, timeout):
+                del timeout
+
+            def connect(self, *args, **kwargs):
+                del args, kwargs
+
+            def recv_data_frame(self, control_frame):
+                del control_frame
+                return (
+                    ws.ABNF.OPCODE_CLOSE,
+                    ws.ABNF(
+                        fin=1,
+                        opcode=ws.ABNF.OPCODE_CLOSE,
+                        data=b"\x03\xe8bye",
+                    ),
+                )
+
+            def close(self, **kwargs):
+                del kwargs
+                self.connected = False
+
+            def shutdown(self):
+                self.connected = False
+
+        on_error = Mock()
+        on_close = Mock()
+        app = ws.WebSocketApp(
+            "ws://example.com",
+            on_error=on_error,
+            on_close=on_close,
+        )
+
+        with patch("octowebsocket._app.WebSocket", FakeWebSocket), patch.object(
+            ws.WebSocketApp,
+            "create_dispatcher",
+            return_value=FakeDispatcher(),
+        ):
+            teardown = app.run_forever()
+
+        self.assertFalse(teardown)
+        on_error.assert_not_called()
+        on_close.assert_called_once_with(app, 1000, "bye")
+
+    def test_set_reconnect_backward_compatibility_alias(self):
+        """The legacy setReconnect name should remain available."""
+        original = ws._app.RECONNECT
+        try:
+            ws.setReconnect(7)
+            self.assertEqual(ws._app.RECONNECT, 7)
+        finally:
+            ws.set_reconnect(original)
 
 
 if __name__ == "__main__":

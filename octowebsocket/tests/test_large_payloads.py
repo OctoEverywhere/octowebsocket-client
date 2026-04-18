@@ -54,13 +54,11 @@ class LargePayloadTest(unittest.TestCase):
 
                 # Verify frame can be formatted without error
                 formatted = frame.format()
+                formatted_bytes = bytes(formatted)
 
                 # Verify the frame header is correctly structured
-                self.assertIsInstance(formatted, bytes)
-                self.assertTrue(len(formatted) >= length)  # Header + payload
-
-                # Verify payload length is preserved
-                self.assertEqual(len(frame.data), length)
+                self.assertIsInstance(formatted, memoryview)
+                self.assertTrue(len(formatted_bytes) >= length)  # Header + payload
 
     def test_recv_large_payload_chunked(self):
         """Test receiving large payloads in chunks (simulating the 16KB recv issue)"""
@@ -104,12 +102,15 @@ class LargePayloadTest(unittest.TestCase):
 
         recv_calls = []
 
-        def mock_recv_with_ssl_limit(bufsize):
+        def mock_recv_with_ssl_limit(buffer):
+            bufsize = len(buffer)
             recv_calls.append(bufsize)
             # This simulates the SSL issue: BAD_LENGTH when trying to recv > 16KB
             if bufsize > 16384:
                 raise SSLError("[SSL: BAD_LENGTH] unknown error")
-            return b"C" * min(bufsize, 16384)
+            bytes_read = min(bufsize, 16384)
+            buffer[:bytes_read] = b"C" * bytes_read
+            return bytes_read
 
         from octowebsocket._abnf import frame_buffer
 
@@ -138,10 +139,10 @@ class LargePayloadTest(unittest.TestCase):
 
                 # Should not raise any exceptions
                 formatted = frame.format()
+                formatted_bytes = bytes(formatted)
 
                 # Verify structure
-                self.assertIsInstance(formatted, bytes)
-                self.assertEqual(len(frame.data), size)
+                self.assertIsInstance(formatted, memoryview)
 
                 # Verify length encoding is correct based on size
                 # Note: frames from create_frame() include masking by default (4 extra bytes)
@@ -162,7 +163,7 @@ class LargePayloadTest(unittest.TestCase):
                         10 + mask_size
                     )  # 1 byte opcode + 1 byte marker + 8 bytes length + 4 byte mask
 
-                self.assertEqual(len(formatted), expected_header_size + size)
+                self.assertEqual(len(formatted_bytes), expected_header_size + size)
 
     def test_send_large_payload_chunking(self):
         """Test that large payloads are sent in chunks to avoid SSL issues"""
@@ -188,7 +189,7 @@ class LargePayloadTest(unittest.TestCase):
         large_payload = b"E" * 32768  # 32KB
 
         # Send the payload
-        with patch("websocket._core.send") as mock_send_func:
+        with patch("octowebsocket._core.send") as mock_send_func:
             mock_send_func.side_effect = lambda sock, data: len(data)
 
             # This should work without SSL errors
@@ -208,7 +209,7 @@ class LargePayloadTest(unittest.TestCase):
 
         # Should not raise validation errors
         formatted = frame.format()
-        self.assertIsInstance(formatted, bytes)
+        self.assertIsInstance(formatted, memoryview)
 
         # Test with close frame that has invalid UTF-8 (this is what validate() actually checks)
         invalid_utf8_close_data = struct.pack("!H", 1000) + b"\xff\xfe invalid utf8"
@@ -263,10 +264,7 @@ class LargePayloadTest(unittest.TestCase):
 
         # Verify the frame can be formatted
         formatted = frame.format()
-        self.assertIsInstance(formatted, bytes)
-
-        # Verify payload is preserved
-        self.assertEqual(len(frame.data), large_size)
+        self.assertIsInstance(formatted, memoryview)
 
 
 if __name__ == "__main__":

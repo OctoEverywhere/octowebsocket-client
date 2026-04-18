@@ -197,16 +197,20 @@ class IsNoProxyHostTest(unittest.TestCase):
     def test_hostname_match_domain(self):
         self.assertTrue(_is_no_proxy_host("any.websocket.org", [".websocket.org"]))
         self.assertTrue(_is_no_proxy_host("my.other.websocket.org", [".websocket.org"]))
+        self.assertTrue(_is_no_proxy_host("websocket.org", [".websocket.org"]))
         self.assertTrue(
             _is_no_proxy_host(
                 "any.websocket.org", ["my.websocket.org", ".websocket.org"]
             )
         )
         self.assertFalse(_is_no_proxy_host("any.websocket.com", [".websocket.org"]))
+        self.assertFalse(_is_no_proxy_host("badwebsocket.org", [".websocket.org"]))
         os.environ["no_proxy"] = ".websocket.org"
         self.assertTrue(_is_no_proxy_host("any.websocket.org", None))
         self.assertTrue(_is_no_proxy_host("my.other.websocket.org", None))
+        self.assertTrue(_is_no_proxy_host("websocket.org", None))
         self.assertFalse(_is_no_proxy_host("any.websocket.com", None))
+        self.assertFalse(_is_no_proxy_host("badwebsocket.org", None))
         os.environ["no_proxy"] = "my.websocket.org, .websocket.org"
         self.assertTrue(_is_no_proxy_host("any.websocket.org", None))
 

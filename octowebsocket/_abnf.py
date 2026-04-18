@@ -5,7 +5,11 @@ import sys
 from threading import Lock
 from typing import Callable, Optional, Union, Any, List
 
-from ._exceptions import WebSocketPayloadException, WebSocketProtocolException
+from ._exceptions import (
+    WebSocketConnectionClosedException,
+    WebSocketPayloadException,
+    WebSocketProtocolException,
+)
 from ._utils import validate_utf8
 
 """
@@ -18,7 +22,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.04
+    http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -352,7 +356,7 @@ class ABNF:
         return mask_key + s
 
     @staticmethod
-    def mask(mask_key: Union[str, bytes], data: Union[str, bytes]) -> bytes:
+    def mask(mask_key: Union[str, bytes, bytearray], data: Union[str, bytes, bytearray]) -> bytes:
         """
         Mask or unmask data. Just do xor for each byte
 
@@ -382,6 +386,7 @@ class frame_buffer:
     def __init__(
         self, recv_into_fn: Callable[[Union[bytearray, memoryview]], int], skip_utf8_validation: bool
     ) -> None:
+        self.recv = recv_into_fn
         self.recv_into = recv_into_fn
         self.skip_utf8_validation = skip_utf8_validation
         self.clear()
@@ -390,7 +395,8 @@ class frame_buffer:
     def clear(self) -> None:
         self.header: Optional[tuple] = None
         self.length: Optional[int] = None
-        self.mask_value: Optional[Union[bytes, str]] = None
+        self.mask_value: Optional[Union[bytes, bytearray, str]] = None
+        self.recv_buffer = bytearray()
 
     def needs_header(self) -> bool:
         return self.header is None
@@ -473,14 +479,22 @@ class frame_buffer:
 
         return frame
 
-    def recv_strict(self, bufsize: int) -> bytes:
+    def recv_strict(self, bufsize: int) -> bytearray:
         if not isinstance(bufsize, int):
             raise ValueError("bufsize must be an integer")
         shortage = bufsize
         # Allocate the full buffer size we are using, we will copy from the socket directly into it.
         buffer = bytearray(bufsize)
+        if self.recv_buffer:
+            cached_bytes = self.recv_buffer[:bufsize]
+            cached_len = len(cached_bytes)
+            buffer[:cached_len] = cached_bytes
+            del self.recv_buffer[:cached_len]
+            shortage -= cached_len
+        else:
+            cached_len = 0
         with memoryview(buffer) as view:
-            recv_so_far_bytes = 0
+            recv_so_far_bytes = cached_len
             while shortage > 0:
                 # Limit buffer size that we pass to socket.recv() to avoid
                 # fragmenting the heap -- the number of bytes recv() actually
@@ -488,11 +502,35 @@ class frame_buffer:
                 # yet passing large numbers repeatedly causes lots of large
                 # buffers allocated and then shrunk, which results in
                 # fragmentation. 131072 is the default TCP buffer size on most Linux systems.
-                this_read_size_bytes = min(131072, shortage)
+                this_read_size_bytes = min(16384, shortage)
 
                 # Slicing the view isn't a copy, but it's sending a view of just that chunk of the buffer.
                 # As long as the buffer is under 16384, this recv_into will fill the full buffer in the first call.
-                bytes_read = self.recv_into(view[recv_so_far_bytes:recv_so_far_bytes + this_read_size_bytes])
+                chunk_view = view[
+                    recv_so_far_bytes : recv_so_far_bytes + this_read_size_bytes
+                ]
+                try:
+                    read_result = self.recv_into(chunk_view)
+                except TypeError:
+                    # Backward-compatible path for legacy recv(size)->bytes callables.
+                    read_result = self.recv(this_read_size_bytes)
+                except Exception:
+                    if recv_so_far_bytes:
+                        self.recv_buffer = (
+                            bytearray(buffer[:recv_so_far_bytes]) + self.recv_buffer
+                        )
+                    raise
+
+                if isinstance(read_result, int):
+                    bytes_read = read_result
+                else:
+                    bytes_read = len(read_result)
+                    chunk_view[:bytes_read] = read_result
+
+                if bytes_read == 0:
+                    raise WebSocketConnectionClosedException(
+                        "Connection to remote host was lost."
+                    )
                 recv_so_far_bytes += bytes_read
                 shortage -= bytes_read
 
@@ -507,7 +545,7 @@ class continuous_frame:
         self.recving_frames: Optional[int] = None
 
     def is_building(self) -> bool:
-        return self.cont_data is not None
+        return self.recving_frames is not None or self.cont_data is not None
 
     def validate(self, frame: ABNF) -> None:
         if not self.recving_frames and frame.opcode == ABNF.OPCODE_CONT:
@@ -519,6 +557,14 @@ class continuous_frame:
             raise WebSocketProtocolException("Illegal frame")
 
     def add(self, frame: ABNF) -> None:
+        if self.fire_cont_frame:
+            if frame.opcode in (ABNF.OPCODE_TEXT, ABNF.OPCODE_BINARY):
+                self.recving_frames = frame.opcode
+            self.cont_data = [frame.opcode, frame.data]
+            if frame.fin:
+                self.recving_frames = None
+            return
+
         if self.cont_data:
             self.cont_data[1] += frame.data
         else:
@@ -536,8 +582,10 @@ class continuous_frame:
         data = self.cont_data
         if data is None:
             raise WebSocketProtocolException("No continuation data available")
-        self.cont_data = None
         frame.data = data[1]
+        self.cont_data = None
+        if self.fire_cont_frame:
+            return data[0], frame
         if (
             not self.fire_cont_frame
             and data is not None

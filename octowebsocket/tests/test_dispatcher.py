@@ -128,7 +128,7 @@ class DispatcherTest(unittest.TestCase):
         mock_sock = Mock()
         test_data = b"test data"
 
-        with patch("websocket._dispatcher.send") as mock_send:
+        with patch("octowebsocket._dispatcher.send") as mock_send:
             mock_send.return_value = len(test_data)
             result = dispatcher.send(mock_sock, test_data)
 
@@ -145,7 +145,8 @@ class DispatcherTest(unittest.TestCase):
         # Mock the selector to control the loop
         with patch("selectors.DefaultSelector") as mock_selector_class:
             mock_selector = Mock()
-            mock_selector_class.return_value = mock_selector
+            mock_selector_class.return_value.__enter__.return_value = mock_selector
+            mock_selector_class.return_value.__exit__.return_value = False
 
             # Make select return immediately (timeout)
             mock_selector.select.return_value = []
@@ -162,7 +163,6 @@ class DispatcherTest(unittest.TestCase):
             # Verify selector was used correctly
             mock_selector.register.assert_called()
             mock_selector.select.assert_called_with(5.0)
-            mock_selector.close.assert_called()
             check_callback.assert_called()
 
     def test_dispatcher_read_with_data(self):
@@ -174,7 +174,8 @@ class DispatcherTest(unittest.TestCase):
 
         with patch("selectors.DefaultSelector") as mock_selector_class:
             mock_selector = Mock()
-            mock_selector_class.return_value = mock_selector
+            mock_selector_class.return_value.__enter__.return_value = mock_selector
+            mock_selector_class.return_value.__exit__.return_value = False
 
             # First call returns data, second call stops the loop
             call_count = 0
@@ -207,7 +208,8 @@ class DispatcherTest(unittest.TestCase):
 
         with patch("selectors.DefaultSelector") as mock_selector_class:
             mock_selector = Mock()
-            mock_selector_class.return_value = mock_selector
+            mock_selector_class.return_value.__enter__.return_value = mock_selector
+            mock_selector_class.return_value.__exit__.return_value = False
             mock_selector.select.return_value = []
 
             # Stop after first iteration
@@ -331,7 +333,7 @@ class DispatcherTest(unittest.TestCase):
         mock_sock = Mock()
         test_data = b"test data"
 
-        with patch("websocket._dispatcher.send") as mock_send:
+        with patch("octowebsocket._dispatcher.send") as mock_send:
             result = wrapped.send(mock_sock, test_data)
 
             # Should delegate to dispatcher.buffwrite

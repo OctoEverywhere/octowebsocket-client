@@ -46,7 +46,7 @@ class HandshakeLargeResponseTest(unittest.TestCase):
             return large_response[:bufsize]
 
         # Mock read_headers to return error status with large content-length
-        with patch("websocket._handshake.read_headers") as mock_read_headers:
+        with patch("octowebsocket._handshake.read_headers") as mock_read_headers:
             mock_read_headers.return_value = (
                 400,  # Bad request status
                 {"content-length": str(len(large_response))},
@@ -54,7 +54,7 @@ class HandshakeLargeResponseTest(unittest.TestCase):
             )
 
             # Mock the recv function to track calls
-            with patch("websocket._socket.recv", side_effect=mock_recv):
+            with patch("octowebsocket._socket.recv", side_effect=mock_recv):
                 # This should not raise SSLError, but should raise WebSocketBadStatusException
                 with self.assertRaises(WebSocketBadStatusException) as cm:
                     _get_resp_headers(mock_sock)
@@ -92,14 +92,14 @@ class HandshakeLargeResponseTest(unittest.TestCase):
             chunks_returned += 1 if result else 0
             return result
 
-        with patch("websocket._handshake.read_headers") as mock_read_headers:
+        with patch("octowebsocket._handshake.read_headers") as mock_read_headers:
             mock_read_headers.return_value = (
                 500,  # Server error
                 {"content-length": str(len(large_content))},
                 "Internal Server Error",
             )
 
-            with patch("websocket._socket.recv", side_effect=mock_recv_chunked):
+            with patch("octowebsocket._socket.recv", side_effect=mock_recv_chunked):
                 # Should handle large response without SSL errors
                 with self.assertRaises(WebSocketBadStatusException) as cm:
                     _get_resp_headers(mock_sock)
@@ -118,14 +118,14 @@ class HandshakeLargeResponseTest(unittest.TestCase):
         def mock_recv(sock, bufsize):
             return small_response
 
-        with patch("websocket._handshake.read_headers") as mock_read_headers:
+        with patch("octowebsocket._handshake.read_headers") as mock_read_headers:
             mock_read_headers.return_value = (
                 404,  # Not found
                 {"content-length": str(len(small_response))},
                 "Not Found",
             )
 
-            with patch("websocket._socket.recv", side_effect=mock_recv):
+            with patch("octowebsocket._socket.recv", side_effect=mock_recv):
                 with self.assertRaises(WebSocketBadStatusException) as cm:
                     _get_resp_headers(mock_sock)
 
@@ -137,7 +137,7 @@ class HandshakeLargeResponseTest(unittest.TestCase):
 
         mock_sock = Mock()
 
-        with patch("websocket._handshake.read_headers") as mock_read_headers:
+        with patch("octowebsocket._handshake.read_headers") as mock_read_headers:
             mock_read_headers.return_value = (
                 403,  # Forbidden
                 {},  # No content-length header

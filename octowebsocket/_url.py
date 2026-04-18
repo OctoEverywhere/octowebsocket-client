@@ -26,6 +26,9 @@ limitations under the License.
 __all__ = ["parse_url", "get_proxy_info"]
 
 
+DEFAULT_NO_PROXY_HOST = ["localhost", "127.0.0.1"]
+
+
 def parse_url(url: str) -> tuple:
     """
     parse url and the result is tuple of
@@ -108,7 +111,7 @@ def _is_no_proxy_host(hostname: str, no_proxy: Optional[List[str]]) -> bool:
             no_proxy = v.split(",")
 
     if not no_proxy:
-        no_proxy = []
+        no_proxy = DEFAULT_NO_PROXY_HOST
 
     if "*" in no_proxy:
         return True
@@ -123,8 +126,8 @@ def _is_no_proxy_host(hostname: str, no_proxy: Optional[List[str]]) -> bool:
             ]
         )
     for domain in [domain for domain in no_proxy if domain.startswith(".")]:
-        endDomain = domain.lstrip(".")
-        if hostname.endswith(endDomain):
+        end_domain = domain.lstrip(".")
+        if hostname == end_domain or hostname.endswith(f".{end_domain}"):
             return True
     return False
 

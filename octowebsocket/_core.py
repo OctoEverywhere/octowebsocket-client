@@ -313,17 +313,17 @@ class WebSocket:
         frame = ABNF.create_frame(payload, opcode, use_frame_mask=use_frame_mask, data_start_offset_bytes=data_start_offset_bytes, data_msg_length_bytes=data_msg_length_bytes)
         return self.send_frame(frame)
 
-    def send_text(self, text_data: str) -> int:
+    def send_text(self, text_data: str, use_frame_mask: bool = True) -> int:
         """
         Sends UTF-8 encoded text.
         """
-        return self.send(text_data, ABNF.OPCODE_TEXT)
+        return self.send(text_data, ABNF.OPCODE_TEXT, use_frame_mask=use_frame_mask)
 
-    def send_bytes(self, data: Union[bytes, bytearray]) -> int:
+    def send_bytes(self, data: Union[bytes, bytearray], use_frame_mask: bool = True) -> int:
         """
         Sends a sequence of bytes.
         """
-        return self.send(data, ABNF.OPCODE_BINARY)
+        return self.send(data, ABNF.OPCODE_BINARY, use_frame_mask=use_frame_mask)
 
     def send_frame(self, frame: ABNF) -> int:
         """
@@ -456,7 +456,6 @@ class WebSocket:
         while True:
             frame = self.recv_frame()
             if isEnabledForTrace():
-                trace(f"++Rcv raw: {repr(frame.format())}")
                 trace(f"++Rcv decoded: {frame}")
             if not frame:
                 # handle error:

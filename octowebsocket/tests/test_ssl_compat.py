@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import importlib
 import sys
 import unittest
 from unittest.mock import patch
@@ -40,8 +41,7 @@ class SSLCompatTest(unittest.TestCase):
     def test_ssl_not_available(self):
         """Test fallback behavior when SSL is not available"""
         # Remove ssl_compat from modules to force reimport
-        if "websocket._ssl_compat" in sys.modules:
-            del sys.modules["websocket._ssl_compat"]
+        sys.modules.pop("octowebsocket._ssl_compat", None)
 
         # Mock the ssl module to not be available
         import builtins
@@ -54,7 +54,8 @@ class SSLCompatTest(unittest.TestCase):
             return original_import(name, *args, **kwargs)
 
         with patch("builtins.__import__", side_effect=mock_import):
-            import octowebsocket._ssl_compat as ssl_compat
+            ssl_compat = importlib.import_module("octowebsocket._ssl_compat")
+            ssl_compat = importlib.reload(ssl_compat)
 
             # SSL should not be available
             self.assertFalse(ssl_compat.HAVE_SSL)
@@ -83,8 +84,7 @@ class SSLCompatTest(unittest.TestCase):
     def tearDown(self):
         """Clean up after tests"""
         # Ensure ssl_compat is reimported fresh for next test
-        if "websocket._ssl_compat" in sys.modules:
-            del sys.modules["websocket._ssl_compat"]
+        sys.modules.pop("octowebsocket._ssl_compat", None)
 
 
 if __name__ == "__main__":
