@@ -14,7 +14,7 @@ This is a fork of `websocket-client` with a few very minor changes made for [Oct
 The goal is to keep the changes as small as possible, and to stay up to date as much as possible.
 
 Changes made: (in commit order)
-    - Added a flag on send to disable frame masking, which gives us a 30% CPU reduction on Pi4
+    - Added a flag on send to use a zero-value frame mask without XORing the payload, which gives us a 30% CPU reduction on Pi4
     - Kept support for PY 3.7 and 3.8 because we need it for the Sonic Pad
     - We had to rename the root folder `octowebsocket` to avoid conflicts.
     - We had to remove some syntax not supported in 3.7.

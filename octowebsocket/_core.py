@@ -300,7 +300,8 @@ class WebSocket:
             Operation code (opcode) to send.
         # OctoChange
         use_frame_mask: bool
-            Whether to mask the data in the websocket frame sent. Default is True.
+            Whether to xor the data with a random websocket mask. Default is True.
+            When False, a zero-value mask key is still written into the frame.
         data_start_offset_bytes: int
             Optional - The start offset into the buffer of data to send.
             If there's enough room at the front of the buffer to append the websocket frame header this will avoid a buffer copy.

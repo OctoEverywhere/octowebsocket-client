@@ -153,7 +153,8 @@ class ABNF:
         mask_value: int = 1,
         data: Optional[Union[str, bytes]] = "",
         data_start_offset_bytes: Union[int, None] = None,
-        data_msg_length_bytes: Union[int, None] = None
+        data_msg_length_bytes: Union[int, None] = None,
+        mask_payload_data: bool = True,
     ) -> None:
         """
         Constructor for ABNF. Please check RFC for arguments.
@@ -170,6 +171,7 @@ class ABNF:
         self.data_start_offset_bytes = 0 if data_start_offset_bytes is None else data_start_offset_bytes
         self.data_msg_length_bytes = len(self.data) if data_msg_length_bytes is None else data_msg_length_bytes
         self.get_mask_key = os.urandom
+        self.mask_payload_data = mask_payload_data
 
     def validate(self, skip_utf8_validation: bool = False) -> None:
         """
@@ -234,7 +236,8 @@ class ABNF:
         fin: int
             fin flag. if set to 0, create continue fragmentation.
         use_frame_mask: bool
-            Whether to mask the data in the websocket frame sent. Default is True.
+            Whether to xor the payload data with a random websocket mask.
+            When False, a zero-value mask key is still emitted in the frame.
         """
         if opcode == ABNF.OPCODE_TEXT and isinstance(data, str):
             if data_start_offset_bytes is not None:
@@ -244,11 +247,21 @@ class ABNF:
             data_msg_length_bytes = None
 
         # OctoChange
-        # From the websocket rfc, a mask must be set if send data from client.
-        # However, computing the mask adds a measurable amount of overhead and is unnecessary if SSL is being used to secure the connection.
-        # Most modern web servers will accept unmasked data when sent over SSL, thus making this optional can help performance.
-        mask_value = 1 if use_frame_mask else 0
-        return ABNF(fin, 0, 0, 0, opcode, mask_value, data, data_start_offset_bytes, data_msg_length_bytes)
+        # From the websocket RFC, client frames must carry a mask key.
+        # When masking is disabled for performance, emit a zero mask key so the
+        # wire format stays masked without paying the XOR cost.
+        return ABNF(
+            fin,
+            0,
+            0,
+            0,
+            opcode,
+            1,
+            data,
+            data_start_offset_bytes,
+            data_msg_length_bytes,
+            mask_payload_data=use_frame_mask,
+        )
 
     def format(self) -> memoryview:
         """
@@ -283,30 +296,55 @@ class ABNF:
             frame_header += chr(self.mask_value << 7 | 0x7F).encode("latin-1")
             frame_header += struct.pack("!Q", self.data_msg_length_bytes)
 
-        # If the data needs to be masked, mask it. There's no way to avoid copying the data here.
+        # If the data needs to be masked, mask it. This needs to be done because some servers will not accept non-masked payloads.
         if self.mask_value:
-            mask_key = self.get_mask_key(4)
-            self.data = self._get_masked(mask_key)
-            self.data_start_offset_bytes = 0
-            self.data_msg_length_bytes = len(self.data)
+            # We must use either the real mask or just zero, if just zero we can skip the masking step and just prepend the zero mask key to the data.
+            mask_key = self.get_mask_key(4) if self.mask_payload_data else b"\x00\x00\x00\x00"
+            if self.mask_payload_data or not self._prepend(mask_key):
+                self.data = self._get_masked(mask_key, mask_data=self.mask_payload_data)
+                self.data_start_offset_bytes = 0
+                self.data_msg_length_bytes = len(self.data)
 
-        # If there'e enough space in the data buffer, write the frame header there without copying.
-        frame_header_len = len(frame_header)
-        if frame_header_len < self.data_start_offset_bytes:
-            self.data[self.data_start_offset_bytes - frame_header_len:self.data_start_offset_bytes] = frame_header
-            self.data_start_offset_bytes -= frame_header_len
-            self.data_msg_length_bytes += frame_header_len
-        else:
+        # Try to add prepend the frame header if there's enough room at the front of the data buffer.
+        if not self._prepend(frame_header):
             # Otherwise, copy the data to a new buffer.
-            self.data = frame_header + self.data
+            self.data = frame_header + bytes(self._get_payload())
             self.data_start_offset_bytes = 0
             self.data_msg_length_bytes = len(self.data)
 
         # Return a memoryview of the data buffer that contains the frame.
         return memoryview(self.data)[self.data_start_offset_bytes:self.data_start_offset_bytes + self.data_msg_length_bytes]
 
-    def _get_masked(self, mask_key: Union[str, bytes]) -> bytes:
-        s = ABNF.mask(mask_key, self.data)
+    def _prepend(self, prefix: bytes) -> bool:
+        prefix_len = len(prefix)
+        if prefix_len > self.data_start_offset_bytes or isinstance(self.data, str):
+            return False
+
+        start_offset_bytes = self.data_start_offset_bytes - prefix_len
+        try:
+            self.data[start_offset_bytes:self.data_start_offset_bytes] = prefix
+        except TypeError:
+            return False
+
+        self.data_start_offset_bytes = start_offset_bytes
+        self.data_msg_length_bytes += prefix_len
+        return True
+
+    def _get_payload(self) -> Union[str, bytes, bytearray, memoryview]:
+        if isinstance(self.data, str):
+            return self.data
+
+        data_end_offset_bytes = self.data_start_offset_bytes + self.data_msg_length_bytes
+        return self.data[self.data_start_offset_bytes:data_end_offset_bytes]
+
+    def _get_masked(self, mask_key: Union[str, bytes], mask_data: bool = True) -> bytes:
+        payload = self._get_payload()
+        if mask_data:
+            s = ABNF.mask(mask_key, payload)
+        elif isinstance(payload, str):
+            s = payload.encode("utf-8")
+        else:
+            s = bytes(payload)
 
         if isinstance(mask_key, str):
             mask_key = mask_key.encode("utf-8")
