@@ -21,8 +21,8 @@ limitations under the License.
 
 VERSION = "1.9.0"
 
-install_requires: list[str] = []
-tests_require: list[str] = []
+install_requires = []
+tests_require = []
 
 setup(
     name="octowebsocket-client",

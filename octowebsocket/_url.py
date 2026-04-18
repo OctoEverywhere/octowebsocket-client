@@ -1,6 +1,6 @@
 import ipaddress
 import os
-from typing import Optional
+from typing import Optional, List
 from urllib.parse import unquote, urlparse
 from ._exceptions import WebSocketProxyException
 
@@ -99,7 +99,7 @@ def _is_address_in_network(ip: str, net: str) -> bool:
         return False
 
 
-def _is_no_proxy_host(hostname: str, no_proxy: Optional[list[str]]) -> bool:
+def _is_no_proxy_host(hostname: str, no_proxy: Optional[List[str]]) -> bool:
     if not no_proxy:
         v = os.environ.get("no_proxy", os.environ.get("NO_PROXY", "")).replace(
             " ", ""
@@ -135,7 +135,7 @@ def get_proxy_info(
     proxy_host: Optional[str] = None,
     proxy_port: int = 0,
     proxy_auth: Optional[tuple] = None,
-    no_proxy: Optional[list[str]] = None,
+    no_proxy: Optional[List[str]] = None,
     proxy_type: str = "http",
 ) -> tuple:
     """

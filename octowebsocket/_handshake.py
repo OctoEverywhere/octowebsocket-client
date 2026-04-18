@@ -147,7 +147,7 @@ def _get_resp_headers(sock, success_statuses: tuple = SUCCESS_STATUSES) -> tuple
         content_len = resp_headers.get("content-length")
         if content_len:
             # Use chunked reading to avoid SSL BAD_LENGTH error on large responses
-            from ._socket import recv
+            from ._socket import recv #pylint: disable=import-outside-toplevel
 
             response_body = b""
             remaining = int(content_len)
