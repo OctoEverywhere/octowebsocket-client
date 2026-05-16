@@ -22,6 +22,7 @@ Changes made: (in commit order)
     - Enabled PYlint and disabled a few warnings that aren't important to fix
     - Added buffer optimizations to allow for passing buffer fragments to be sent and preventing buffer copies.
     - Added logic to allow zero copy buffer reads
+    - Fixed a bug with handling the close packet
 
 
 To Update:
@@ -29,10 +30,7 @@ To Update:
     - Rebase our octo branch on top of it.
     - Search for the current version string and update all instances.
     - Commit the changes, allow the GitHub Actions to run and turn green.
-    - Run:
-        - `python -m build`
-        - `twine check dist/*`
-        - `twine upload dist/*`
+    - Run the uplaod.ps1
 
 Source Repo: https://github.com/websocket-client/websocket-client
 

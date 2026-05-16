@@ -19,7 +19,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-VERSION = "1.9.0"
+VERSION = "1.9.1"
 
 install_requires = []
 tests_require = []
@@ -30,10 +30,10 @@ setup(
     description="WebSocket client for Python with low level API options for OctoEverywhere.com and Homeway.io",
     long_description=open("README.md").read(),
     long_description_content_type="text/markdown",
-    author="liris",
-    author_email="liris.pp@gmail.com",
+    author="quinndamerell",
+    author_email="support@homeway.io",
     maintainer="quinndamerell",
-    maintainer_email="support@octoeverywhere.com",
+    maintainer_email="support@homeway.io",
     license="Apache-2.0",
     url="https://github.com/OctoEverywhere/octowebsocket-client.git",
     download_url="https://github.com/OctoEverywhere/octowebsocket-client/releases",
